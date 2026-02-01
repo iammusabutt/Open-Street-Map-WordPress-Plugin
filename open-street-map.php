@@ -30,6 +30,14 @@ function open_street_map_enqueue_scripts() {
 }
 add_action( 'wp_enqueue_scripts', 'open_street_map_enqueue_scripts' );
 
+function osm_enqueue_admin_scripts($hook) {
+    if ($hook !== 'openstreetmap_page_osm-settings') {
+        return;
+    }
+    wp_enqueue_style( 'osm-admin-style', plugin_dir_url( __FILE__ ) . 'css/admin-style.css' );
+}
+add_action( 'admin_enqueue_scripts', 'osm_enqueue_admin_scripts' );
+
 function open_street_map_shortcode() {
     ob_start();
     ?>
@@ -262,79 +270,253 @@ function osm_process_import_batch($job_id) {
     }
 }
 
+function osm_get_pins() {
+    $pins_dir = plugin_dir_path( __FILE__ ) . 'assets/pins/';
+    $pins_url = plugin_dir_url( __FILE__ ) . 'assets/pins/';
+    $files = scandir($pins_dir);
+    $pins = array();
+
+    foreach ($files as $file) {
+        if (pathinfo($file, PATHINFO_EXTENSION) === 'svg') {
+            $pins[] = array(
+                'name' => $file,
+                'venue' => pathinfo($file, PATHINFO_FILENAME),
+                'url' => $pins_url . $file
+            );
+        }
+    }
+    return $pins;
+}
+
+function osm_allow_svg_upload_mimes($mimes) {
+    $mimes['svg'] = 'image/svg+xml';
+    return $mimes;
+}
+
+function osm_ajax_upload_pin() {
+    check_ajax_referer('osm_ajax_nonce', 'nonce');
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error('You do not have permission to perform this action.');
+    }
+
+    if ( ! isset( $_FILES['pin_file'] ) || $_FILES['pin_file']['error'] !== UPLOAD_ERR_OK ) {
+        wp_send_json_error('Error uploading file.');
+    }
+
+    // Temporarily allow SVG uploads
+    add_filter('upload_mimes', 'osm_allow_svg_upload_mimes');
+
+    $file = $_FILES['pin_file'];
+    $file_info = wp_check_filetype_and_ext($file['tmp_name'], $file['name']);
+    
+    if ($file_info['ext'] !== 'svg') {
+        remove_filter('upload_mimes', 'osm_allow_svg_upload_mimes');
+        wp_send_json_error('Please upload a valid .svg file.');
+    }
+
+    $target_dir = plugin_dir_path( __FILE__ ) . 'assets/pins/';
+    $filename = sanitize_file_name($file['name']);
+    $new_file_path = $target_dir . $filename;
+
+    if (move_uploaded_file($file['tmp_name'], $new_file_path)) {
+        wp_send_json_success(array(
+            'message' => 'Pin uploaded successfully.',
+            'pin' => array(
+                'name' => $filename,
+                'venue' => pathinfo($filename, PATHINFO_FILENAME),
+                'url' => plugin_dir_url( __FILE__ ) . 'assets/pins/' . $filename
+            )
+        ));
+    } else {
+        wp_send_json_error('Failed to move uploaded file.');
+    }
+
+    // Clean up the filter
+    remove_filter('upload_mimes', 'osm_allow_svg_upload_mimes');
+}
+add_action('wp_ajax_osm_upload_pin', 'osm_ajax_upload_pin');
+
+function osm_ajax_delete_pin() {
+    check_ajax_referer('osm_ajax_nonce', 'nonce');
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error('You do not have permission to perform this action.');
+    }
+
+    $filename = sanitize_file_name($_POST['pin_name']);
+    $file_path = plugin_dir_path( __FILE__ ) . 'assets/pins/' . $filename;
+
+    if (file_exists($file_path)) {
+        if (unlink($file_path)) {
+            wp_send_json_success('Pin deleted successfully.');
+        } else {
+            wp_send_json_error('Failed to delete pin.');
+        }
+    } else {
+        wp_send_json_error('Pin not found.');
+    }
+}
+add_action('wp_ajax_osm_delete_pin', 'osm_ajax_delete_pin');
+
 function osm_settings_page_html() {
     ?>
+    <div id="osm-toaster-container"></div>
     <style>
-        #osm-import-panel {
-            background: #fff;
-            border: 1px solid #ccd0d4;
-            padding: 20px;
-            border-radius: 4px;
+        #osm-pins-panel .pin-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
         }
-        #osm-upload-step, #osm-progress-step {
-            display: none;
+        #osm-pins-panel .pin-item img {
+            width: 32px;
+            height: 32px;
+            margin-right: 15px;
         }
-        #osm-import-panel.initial #osm-upload-step {
-            display: block;
-        }
-        #osm-import-panel.uploading #osm-upload-step .spinner {
-            display: inline-block;
-            visibility: visible;
-        }
-        #osm-import-panel.uploaded #osm-progress-step {
-            display: block;
-        }
-         #osm-import-panel.importing #osm-progress-step {
-            display: block;
-        }
-        #osm-file-name {
+        #osm-pins-panel .pin-item .pin-name {
             font-weight: bold;
+            flex-grow: 1;
         }
-        #import-progress {
-            width: 100%;
+        #osm-pins-panel .pin-item .pin-venue {
+            font-style: italic;
+            color: #777;
+            margin-right: 15px;
         }
     </style>
-    <div class="wrap">
-        <h1>OpenStreetMap Settings</h1>
-        <div id="osm-import-panel" class="initial">
-            <!-- Step 1: Upload -->
-            <div id="osm-upload-step">
-                <h2>Import Tool</h2>
-                <p>For Cities, the CSV column order should be: <strong>Name, Latitude, Longitude, Count, Venue</strong></p>
-                <p>For Signs, the CSV column order should be: <strong>Title, Latitude, Longitude, Venue, City Name</strong></p>
-                <form id="osm-upload-form" method="post" enctype="multipart/form-data">
-                    <p>
-                        <label for="import_type">Import Type:</label>
-                        <select name="import_type" id="import_type">
-                            <option value="cities">Cities</option>
-                            <option value="signs">Signs</option>
-                        </select>
-                    </p>
-                    <p>
-                        <label for="csv_file">CSV File:</label>
-                        <input type="file" name="csv_file" id="csv_file" accept=".csv">
-                    </p>
-                    <p class="submit">
-                        <button type="submit" class="button-primary">Upload File</button>
-                        <span class="spinner"></span>
-                    </p>
-                </form>
+    <div class="wrap osm-admin-wrapper">
+        <div class="osm-admin-header">
+            <h1><span class="dashicons dashicons-location-alt" style="font-size: 30px; margin-right: 10px; vertical-align: middle;"></span>OpenStreetMap</h1>
+            <div>
+                <button class="button-primary">Save Changes</button>
+                <button class="button-secondary">Reset All</button>
             </div>
-
-            <!-- Step 2: Progress -->
-            <div id="osm-progress-step">
-                <h2>Import Status</h2>
-                <p>File: <span id="osm-file-name"></span></p>
-                <p>Status: <strong id="osm-import-status">Uploaded</strong></p>
-                <button id="osm-run-import" class="button-primary">Run Import</button>
-                <div id="import-progress-wrapper" style="display: none; margin-top: 20px;">
-                    <progress id="import-progress" value="0" max="100"></progress>
-                    <p><span id="progress-text">0</span>% complete</p>
-                    <p><span id="processed-count">0</span> of <span id="total-count">0</span> records processed.</p>
+        </div>
+        <div class="osm-admin-content-wrap">
+            <div class="osm-admin-tabs">
+                <ul>
+                    <li>
+                        <a href="#settings" class="nav-tab nav-tab-active">
+                            <span class="dashicons dashicons-admin-generic"></span>
+                            <span>General Settings</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#pins" class="nav-tab">
+                            <span class="dashicons dashicons-location"></span>
+                            <span>Pins</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#colors" class="nav-tab">
+                            <span class="dashicons dashicons-art"></span>
+                            <span>Colors</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#import" class="nav-tab">
+                            <span class="dashicons dashicons-upload"></span>
+                            <span>Import Tool</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+                <div id="settings" class="osm-admin-tab-pane active">
+                    <h2 class="osm-tab-title">General Settings</h2>
+                    <p>This is where the general settings will go.</p>
                 </div>
-                 <div id="import-errors" style="display: none;">
-                    <h3>Import Errors:</h3>
-                    <ul id="error-list"></ul>
+                <div id="import" class="osm-admin-tab-pane">
+                    <div id="osm-import-panel">
+                        <div id="osm-upload-step">
+                            <h2 class="osm-tab-title">Import Tool</h2>
+                            <p>For Cities, the CSV column order should be: <strong>Name, Latitude, Longitude, Count, Venue</strong></p>
+                            <p>For Signs, the CSV column order should be: <strong>Title, Latitude, Longitude, Venue, City Name</strong></p>
+                            <form id="osm-upload-form" method="post" enctype="multipart/form-data">
+                                <p>
+                                    <label for="import_type">Import Type:</label>
+                                    <select name="import_type" id="import_type">
+                                        <option value="cities">Cities</option>
+                                        <option value="signs">Signs</option>
+                                    </select>
+                                </p>
+                                <p>
+                                    <label>CSV File:</label>
+                                    <div class="custom-file-upload-wrapper">
+                                        <label for="csv_file" class="custom-file-upload-label">Choose CSV File</label>
+                                        <input type="file" name="csv_file" id="csv_file" class="custom-file-upload-input" accept=".csv">
+                                        <span class="custom-file-upload-filename">No file chosen</span>
+                                    </div>
+                                </p>
+                                <p class="submit">
+                                    <button type="submit" class="button-primary">Upload File</button>
+                                    <span class="spinner"></span>
+                                </p>
+                            </form>
+                        </div>
+                        <div id="osm-progress-step" style="display:none;">
+                            <h2 class="osm-tab-title">Import Status</h2>
+                            <p>File: <span id="osm-file-name"></span></p>
+                            <p>Status: <strong id="osm-import-status">Uploaded</strong></p>
+                            <button id="osm-run-import" class="button-primary">Run Import</button>
+                            <div id="import-progress-wrapper" style="display: none; margin-top: 20px;">
+                                <progress id="import-progress" value="0" max="100"></progress>
+                                <p><span id="progress-text">0</span>% complete</p>
+                                <p><span id="processed-count">0</span> of <span id="total-count">0</span> records processed.</p>
+                            </div>
+                            <div id="import-errors" style="display: none;">
+                                <h3 class="osm-tab-title">Import Errors:</h3>
+                                <ul id="error-list"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="colors" class="osm-admin-tab-pane">
+                    <h2 class="osm-tab-title">Color Settings</h2>
+                    <p>This is where the color settings will go.</p>
+                </div>
+                <div id="pins" class="osm-admin-tab-pane">
+                    <h2 class="osm-tab-title">Manage Pins</h2>
+                    <div id="osm-pins-panel">
+                        <div id="osm-pin-upload-section">
+                            <h3 class="osm-tab-title">Upload New Pin</h3>
+                            <form id="osm-upload-pin-form" method="post" enctype="multipart/form-data">
+                                <p>
+                                    <label>Pin File (must be .svg):</label>
+                                    <div class="custom-file-upload-wrapper">
+                                        <label for="pin_file" class="custom-file-upload-label">Choose SVG Pin</label>
+                                        <input type="file" name="pin_file" id="pin_file" class="custom-file-upload-input" accept=".svg">
+                                        <span class="custom-file-upload-filename">No file chosen</span>
+                                    </div>
+                                </p>
+                                <p class="submit">
+                                    <button type="submit" class="button-primary">Upload Pin</button>
+                                    <span class="spinner"></span>
+                                </p>
+                            </form>
+                        </div>
+                        <div id="osm-pin-list-section">
+                            <h3 class="osm-tab-title">Existing Pins</h3>
+                            <div id="osm-pin-list">
+                                <?php
+                                $pins = osm_get_pins();
+                                if (!empty($pins)) {
+                                    foreach ($pins as $pin) {
+                                        ?>
+                                        <div class="pin-item" data-pin-name="<?php echo esc_attr($pin['name']); ?>">
+                                            <img src="<?php echo esc_url($pin['url']); ?>" alt="<?php echo esc_attr($pin['venue']); ?>">
+                                            <span class="pin-name"><?php echo esc_html($pin['name']); ?></span>
+                                            <span class="pin-venue">Venue: "<?php echo esc_html($pin['venue']); ?>"</span>
+                                            <button class="button-secondary delete-pin">Delete</button>
+                                        </div>
+                                        <?php
+                                    }
+                                } else {
+                                    echo '<p>No pins found.</p>';
+                                }
+                                ?>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -342,6 +524,48 @@ function osm_settings_page_html() {
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Tab switching
+        const tabs = document.querySelectorAll('.osm-admin-tabs a');
+        const panes = document.querySelectorAll('.osm-admin-tab-pane');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                tabs.forEach(t => t.classList.remove('nav-tab-active'));
+                this.classList.add('nav-tab-active');
+
+                panes.forEach(pane => {
+                    if (pane.id === this.hash.substring(1)) {
+                        pane.classList.add('active');
+                    } else {
+                        pane.classList.remove('active');
+                    }
+                });
+            });
+        });
+
+        // Custom file input handler
+        function setupCustomFileInput(inputId) {
+            const fileInput = document.getElementById(inputId);
+            if (!fileInput) return;
+
+            const filenameSpan = fileInput.closest('.custom-file-upload-wrapper').querySelector('.custom-file-upload-filename');
+            
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files.length > 0) {
+                    filenameSpan.textContent = this.files[0].name;
+                } else {
+                    filenameSpan.textContent = 'No file chosen';
+                }
+            });
+        }
+
+        setupCustomFileInput('csv_file');
+        setupCustomFileInput('pin_file');
+
+
+        // CSV import script
         const panel = document.getElementById('osm-import-panel');
         const uploadForm = document.getElementById('osm-upload-form');
         const runImportBtn = document.getElementById('osm-run-import');
@@ -358,8 +582,8 @@ function osm_settings_page_html() {
         let currentJobId = null;
         let progressInterval = null;
         const restApiNonce = '<?php echo wp_create_nonce('wp_rest'); ?>';
+        const ajaxNonce = '<?php echo wp_create_nonce("osm_ajax_nonce"); ?>';
 
-        // Function to update UI based on job status
         function updateUIForJobStatus(job) {
             if (!job) {
                 panel.classList.remove('uploaded', 'importing');
@@ -399,17 +623,15 @@ function osm_settings_page_html() {
                 panel.classList.remove('importing');
                 panel.classList.add('uploaded');
                 runImportBtn.style.display = 'none';
-                // You might want to remove the file after completion from the server
             } else if (job.status === 'failed') {
                 clearInterval(progressInterval);
                 statusText.textContent = 'Failed';
                 panel.classList.remove('importing');
                 panel.classList.add('uploaded');
-                runImportBtn.style.display = 'inline-block'; // Allow re-attempt if failed
+                runImportBtn.style.display = 'inline-block';
             }
         }
 
-        // Monitor progress function
         function monitorProgress(job_id) {
             currentJobId = job_id;
             progressInterval = setInterval(function() {
@@ -426,7 +648,6 @@ function osm_settings_page_html() {
                                 clearInterval(progressInterval);
                             }
                         } else {
-                            // Job disappeared, clear interval
                             clearInterval(progressInterval);
                             updateUIForJobStatus(null);
                         }
@@ -441,114 +662,212 @@ function osm_settings_page_html() {
             }, 3000);
         }
 
-        // Check for existing job on page load
-        const initial_job_id = '<?php echo get_transient("osm_current_import_job_id"); ?>';
-        if (initial_job_id) {
-            fetch('<?php echo get_rest_url(null, "osm/v1/import-progress/"); ?>' + initial_job_id, {
-                headers: {
-                    'X-WP-Nonce': restApiNonce
-                }
-            })
-                .then(response => response.json())
-                .then(job => {
-                    if (job && (job.status === 'pending' || job.status === 'in_progress')) {
-                        document.getElementById('osm-file-name').textContent = job.file_path.split('/').pop();
-                        uploadedFileData = { filePath: job.file_path, importType: job.import_type };
-                        monitorProgress(initial_job_id);
-                    } else {
+        if (uploadForm) {
+            const initial_job_id = '<?php echo get_transient("osm_current_import_job_id"); ?>';
+            if (initial_job_id) {
+                fetch('<?php echo get_rest_url(null, "osm/v1/import-progress/"); ?>' + initial_job_id, {
+                    headers: {
+                        'X-WP-Nonce': restApiNonce
+                    }
+                })
+                    .then(response => response.json())
+                    .then(job => {
+                        if (job && (job.status === 'pending' || job.status === 'in_progress')) {
+                            document.getElementById('osm-file-name').textContent = job.file_path.split('/').pop();
+                            uploadedFileData = { filePath: job.file_path, importType: job.import_type };
+                            monitorProgress(initial_job_id);
+                        } else {
+                            updateUIForJobStatus(null);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking initial job status:', error);
                         updateUIForJobStatus(null);
+                    });
+            }
+
+            uploadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                panel.classList.remove('initial', 'uploaded', 'importing');
+                panel.classList.add('uploading');
+                runImportBtn.style.display = 'none';
+
+                const formData = new FormData(this);
+                formData.append('action', 'osm_upload_csv');
+                formData.append('nonce', ajaxNonce);
+
+                fetch('<?php echo admin_url("admin-ajax.php"); ?>', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    panel.classList.remove('uploading');
+                    if (data.success) {
+                        panel.classList.add('uploaded');
+                        document.getElementById('osm-file-name').textContent = data.data.fileName;
+                        statusText.textContent = 'Uploaded';
+                        uploadedFileData = {
+                            filePath: data.data.filePath,
+                            importType: document.getElementById('import_type').value
+                        };
+                        runImportBtn.style.display = 'inline-block';
+                        progressWrapper.style.display = 'none';
+                        errorList.innerHTML = '';
+                        importErrors.style.display = 'none';
+
+                    } else {
+                        alert('Upload failed: ' + data.data);
+                        panel.classList.add('initial');
                     }
                 })
                 .catch(error => {
-                    console.error('Error checking initial job status:', error);
-                    updateUIForJobStatus(null);
-                });
-        }
-
-        uploadForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            panel.classList.remove('initial', 'uploaded', 'importing');
-            panel.classList.add('uploading');
-            runImportBtn.style.display = 'none';
-
-            const formData = new FormData(this);
-            formData.append('action', 'osm_upload_csv');
-            formData.append('nonce', '<?php echo wp_create_nonce("osm_ajax_nonce"); ?>');
-
-            fetch('<?php echo admin_url("admin-ajax.php"); ?>', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                panel.classList.remove('uploading');
-                if (data.success) {
-                    panel.classList.add('uploaded');
-                    document.getElementById('osm-file-name').textContent = data.data.fileName;
-                    statusText.textContent = 'Uploaded';
-                    uploadedFileData = {
-                        filePath: data.data.filePath,
-                        importType: document.getElementById('import_type').value
-                    };
-                    runImportBtn.style.display = 'inline-block';
-                    progressWrapper.style.display = 'none';
-                    errorList.innerHTML = '';
-                    importErrors.style.display = 'none';
-
-                } else {
-                    alert('Upload failed: ' + data.data);
+                    console.error('Upload fetch error:', error);
+                    alert('An unexpected error occurred during upload.');
+                    panel.classList.remove('uploading');
                     panel.classList.add('initial');
-                }
-            })
-            .catch(error => {
-                console.error('Upload fetch error:', error);
-                alert('An unexpected error occurred during upload.');
-                panel.classList.remove('uploading');
-                panel.classList.add('initial');
+                });
             });
-        });
 
-        runImportBtn.addEventListener('click', function() {
-            if (!uploadedFileData.filePath) {
-                alert('Please upload a CSV file first.');
-                return;
-            }
+            runImportBtn.addEventListener('click', function() {
+                if (!uploadedFileData.filePath) {
+                    alert('Please upload a CSV file first.');
+                    return;
+                }
 
-            statusText.textContent = 'Starting Import...';
-            panel.classList.remove('uploaded');
-            panel.classList.add('importing');
-            runImportBtn.style.display = 'none';
-            progressWrapper.style.display = 'block';
+                statusText.textContent = 'Starting Import...';
+                panel.classList.remove('uploaded');
+                panel.classList.add('importing');
+                runImportBtn.style.display = 'none';
+                progressWrapper.style.display = 'block';
 
-            const formData = new FormData();
-            formData.append('action', 'osm_start_import');
-            formData.append('nonce', '<?php echo wp_create_nonce("osm_ajax_nonce"); ?>');
-            formData.append('file_path', uploadedFileData.filePath);
-            formData.append('import_type', uploadedFileData.importType);
+                const formData = new FormData();
+                formData.append('action', 'osm_start_import');
+                formData.append('nonce', ajaxNonce);
+                formData.append('file_path', uploadedFileData.filePath);
+                formData.append('import_type', uploadedFileData.importType);
 
-            fetch('<?php echo admin_url("admin-ajax.php"); ?>', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    monitorProgress(data.data.job_id);
-                } else {
-                    alert('Failed to start import: ' + data.data);
+                fetch('<?php echo admin_url("admin-ajax.php"); ?>', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        monitorProgress(data.data.job_id);
+                    } else {
+                        alert('Failed to start import: ' + data.data);
+                        panel.classList.remove('importing');
+                        panel.classList.add('uploaded');
+                        runImportBtn.style.display = 'inline-block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Start import fetch error:', error);
+                    alert('An unexpected error occurred when starting import.');
                     panel.classList.remove('importing');
                     panel.classList.add('uploaded');
                     runImportBtn.style.display = 'inline-block';
-                }
-            })
-            .catch(error => {
-                console.error('Start import fetch error:', error);
-                alert('An unexpected error occurred when starting import.');
-                panel.classList.remove('importing');
-                panel.classList.add('uploaded');
-                runImportBtn.style.display = 'inline-block';
+                });
             });
-        });
+        }
+
+        // Toaster notification function
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('osm-toaster-container');
+            const toast = document.createElement('div');
+            toast.className = `osm-toast osm-toast-${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 5000);
+        }
+
+        // Pin management script
+        const pinUploadForm = document.getElementById('osm-upload-pin-form');
+        if (pinUploadForm) {
+            pinUploadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const spinner = this.querySelector('.spinner');
+                spinner.style.visibility = 'visible';
+
+                const formData = new FormData(this);
+                formData.append('action', 'osm_upload_pin');
+                formData.append('nonce', ajaxNonce);
+
+                fetch('<?php echo admin_url("admin-ajax.php"); ?>', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    spinner.style.visibility = 'hidden';
+                    if (data.success) {
+                        showToast(data.data.message, 'success');
+                        // Add new pin to the list
+                        const pinList = document.getElementById('osm-pin-list');
+                        const newPin = data.data.pin;
+                        const pinItem = document.createElement('div');
+                        pinItem.classList.add('pin-item');
+                        pinItem.dataset.pinName = newPin.name;
+                        pinItem.innerHTML = `
+                            <img src="${newPin.url}" alt="${newPin.venue}">
+                            <span class="pin-name">${newPin.name}</span>
+                            <span class="pin-venue">Venue: "${newPin.venue}"</span>
+                            <button class="button-secondary delete-pin">Delete</button>
+                        `;
+                        pinList.appendChild(pinItem);
+                        pinUploadForm.reset();
+                    } else {
+                        showToast('Upload failed: ' + data.data, 'error');
+                    }
+                })
+                .catch(error => {
+                    spinner.style.visibility = 'hidden';
+                    console.error('Upload fetch error:', error);
+                    showToast('An unexpected error occurred during upload.', 'error');
+                });
+            });
+        }
+
+        const pinListContainer = document.getElementById('osm-pin-list');
+        if (pinListContainer) {
+            pinListContainer.addEventListener('click', function(e) {
+                if (e.target.classList.contains('delete-pin')) {
+                    if (!confirm('Are you sure you want to delete this pin?')) {
+                        return;
+                    }
+
+                    const pinItem = e.target.closest('.pin-item');
+                    const pinName = pinItem.dataset.pinName;
+
+                    const formData = new FormData();
+                    formData.append('action', 'osm_delete_pin');
+                    formData.append('nonce', ajaxNonce);
+                    formData.append('pin_name', pinName);
+
+                    fetch('<?php echo admin_url("admin-ajax.php"); ?>', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showToast(data.data, 'success');
+                            pinItem.remove();
+                        } else {
+                            showToast('Deletion failed: ' + data.data, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Delete fetch error:', error);
+                        showToast('An unexpected error occurred during deletion.', 'error');
+                    });
+                }
+            });
+        }
     });
     </script>
     <?php
@@ -744,8 +1063,6 @@ function sign_fields_callback( $post ) {
     echo '<p><label for="sign_lng">Longitude: </label>';
     echo '<input type="text" id="sign_lng" name="sign_lng" value="' . esc_attr( $lng ) . '" size="25" /></p>';
 
-    echo '<p><label for="sign_venue">Venue: </label>';
-    echo '<input type="text" id="sign_venue" name="sign_venue" value="' . esc_attr( $venue ) . '" size="25" /></p>';
     
     echo '<p><label for="sign_city_id">City: </label>';
     echo '<select id="sign_city_id" name="sign_city_id">';
@@ -763,6 +1080,53 @@ function sign_fields_callback( $post ) {
         echo '<option value="' . esc_attr( $city_post->ID ) . '" ' . $selected . '>' . esc_html( $city_post->post_title ) . '</option>';
     }
     echo '</select></p>';
+
+    // Visual Pin Selector for Venue
+    $pins = osm_get_pins();
+    ?>
+    <style>
+        .pin-selector-wrap {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); /* Increased min-width */
+            gap: 10px;
+        }
+        .pin-selector-item input[type="radio"] {
+            display: none;
+        }
+        .pin-selector-item label {
+            display: block;
+            cursor: pointer;
+            text-align: center;
+            padding: 10px 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+        .pin-selector-item label img {
+            width: 32px;
+            height: 32px;
+            display: block;
+            margin: 0 auto 5px;
+        }
+        .pin-selector-item input[type="radio"]:checked + label {
+            background-color: #f0f0f0;
+            border-color: #0073aa;
+            box-shadow: 0 0 5px rgba(0,115,170,0.5);
+        }
+    </style>
+    <p><strong>Venue Pin:</strong></p>
+    <div class="pin-selector-wrap">
+        <?php foreach ($pins as $pin) : ?>
+            <div class="pin-selector-item">
+                <input type="radio" id="venue_<?php echo esc_attr($pin['venue']); ?>" name="sign_venue" value="<?php echo esc_attr($pin['venue']); ?>" <?php checked($venue, $pin['venue']); ?>>
+                <label for="venue_<?php echo esc_attr($pin['venue']); ?>">
+                    <img src="<?php echo esc_url($pin['url']); ?>" alt="<?php echo esc_attr($pin['venue']); ?>">
+                    <span><?php echo esc_html(ucfirst(str_replace('-', ' ', $pin['venue']))); ?></span>
+                </label>
+            </div>
+        <?php endforeach; ?>
+    </div>
+    <?php
 }
 
 function sign_save_meta_box_data( $post_id ) {
