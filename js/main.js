@@ -1,14 +1,50 @@
 let CITY_CENTERS = {};
 let map;
 
-function searchCity(city) {
-    const input = city || document.getElementById("search").value.trim().toLowerCase();
-    const coords = CITY_CENTERS[input];
-    if (coords) {
-      map.flyTo({ center: coords, zoom: 10, speed: 0.7 });
-    } else {
-      alert("City not found.");
+async function searchCity(city) {
+  const input = city || document.getElementById("search").value.trim().toLowerCase();
+
+  // 1. Try Local Search (Exact Match)
+  const coords = CITY_CENTERS[input];
+  if (coords) {
+    map.flyTo({ center: coords, zoom: 10, speed: 0.7 });
+    return;
+  }
+
+  // 2. Try Local Search (Fuzzy Match with Fuse.js)
+  if (window.fuse) {
+    const fuzzyResult = window.fuse.search(input);
+    if (fuzzyResult.length > 0 && fuzzyResult[0].score < 0.3) {
+      const bestMatch = fuzzyResult[0].item;
+      console.log(`Fuzzy match found: ${input} -> ${bestMatch.name}`);
+      map.flyTo({ center: bestMatch.coords, zoom: 10, speed: 0.7 });
+      return;
     }
+  }
+
+  // 3. Fallback: Nominatim API (via Backend Proxy to avoid CORS)
+  const url = `${plugin_vars.proxy_url}?q=${encodeURIComponent(input)}`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Network response was not ok");
+
+    const data = await response.json();
+
+    if (data && data.length > 0) {
+      const result = data[0];
+      const lat = parseFloat(result.lat);
+      const lon = parseFloat(result.lon);
+
+      // Fly to the found location
+      map.flyTo({ center: [lon, lat], zoom: 10, speed: 0.7 });
+    } else {
+      alert("City not found in local database or via global search.");
+    }
+  } catch (error) {
+    console.error("Nominatim search failed:", error);
+    alert("Search failed. Please try again.");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -27,12 +63,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     CITY_CENTERS = Object.fromEntries(
       CLUSTER_CITIES.map((c) => [c.name.toLowerCase(), c.coords])
     );
+
+    // Initialize Fuse.js
+    const fuseOptions = {
+      keys: ['name'],
+      threshold: 0.3, // 0.0 = exact match, 1.0 = match anything
+      includeScore: true
+    };
+    window.fuse = new Fuse(CLUSTER_CITIES, fuseOptions);
+
   } catch (error) {
     console.error("Error fetching map data:", error);
     // Handle the error appropriately, e.g., show a message to the user
     return;
   }
-  
+
   // ===== MAP SETUP =====
   map = new maplibregl.Map({
     container: "map",
@@ -287,7 +332,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const coords = feature.geometry.coordinates.slice();
       const cityName = feature.properties.name;
       const city = CLUSTER_CITIES.find(
-        (c) => c.name.toLowerCase() === cityName.toLowerCase()
+        (c) => c.name && cityName && c.name.toLowerCase() === cityName.toLowerCase()
       );
       if (!city) return;
 
@@ -422,12 +467,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // ===== CITY SEARCH =====
-  
+
 
   document.getElementById("search").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
-        e.preventDefault();
-        searchCity(document.getElementById("search").value.trim().toLowerCase());
+      e.preventDefault();
+      searchCity(document.getElementById("search").value.trim().toLowerCase());
     }
   });
 

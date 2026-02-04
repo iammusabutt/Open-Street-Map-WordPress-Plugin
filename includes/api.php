@@ -99,3 +99,41 @@ function get_signs_data() {
     }
     return $data;
 }
+
+// REST API endpoint for proxy search (Fixes CORS)
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'osm/v1', '/proxy-search', array(
+        'methods' => 'GET',
+        'callback' => 'osm_proxy_search_callback',
+        'permission_callback' => '__return_true'
+    ) );
+} );
+
+function osm_proxy_search_callback( $request ) {
+    $search_query = $request->get_param( 'q' );
+    
+    if ( empty( $search_query ) ) {
+        return new WP_Error( 'missing_term', 'Search term is missing', array( 'status' => 400 ) );
+    }
+
+    $url = 'https://nominatim.openstreetmap.org/search?format=json&q=' . urlencode( $search_query ) . '&limit=1';
+    
+    $args = array(
+        'headers' => array(
+             // User-Agent is REQUIRED by Nominatim Usage Policy
+            'User-Agent' => 'WordPress OpenStreetMap Plugin/1.0; ' . home_url()
+        )
+    );
+
+    $response = wp_remote_get( $url, $args );
+
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $body = wp_remote_retrieve_body( $response );
+    $data = json_decode( $body );
+
+    return new WP_REST_Response( $data, 200 );
+}
+
