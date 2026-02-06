@@ -55,56 +55,10 @@ function city_custom_fields() {
 }
 add_action( 'add_meta_boxes', 'city_custom_fields' );
 
-function city_signs_meta_box() {
-    add_meta_box(
-        'city_signs_list',
-        'Signs in this City',
-        'city_signs_meta_box_callback',
-        'city',
-        'normal',
-        'default'
-    );
-}
-add_action( 'add_meta_boxes', 'city_signs_meta_box' );
-
-function city_signs_meta_box_callback( $post ) {
-    $args = array(
-        'post_type' => 'sign',
-        'posts_per_page' => -1,
-        'meta_key' => '_sign_city_id',
-        'meta_value' => $post->ID,
-    );
-
-    $signs = get_posts( $args );
-
-    if ( $signs ) {
-        echo '<ul>';
-        foreach ( $signs as $sign ) {
-            $edit_link = get_edit_post_link( $sign->ID );
-            echo '<li><a href="' . esc_url( $edit_link ) . '">' . esc_html( $sign->post_title ) . '</a></li>';
-        }
-        echo '</ul>';
-    } else {
-        echo '<p>No signs found for this city.</p>';
-    }
-}
-
-function add_new_sign_link_meta_box() {
-    add_meta_box(
-        'add_new_sign_link',
-        'Add New Sign',
-        'add_new_sign_link_callback',
-        'city',
-        'side',
-        'low'
-    );
-}
-add_action('add_meta_boxes', 'add_new_sign_link_meta_box');
-
-function add_new_sign_link_callback($post) {
-    $add_new_sign_url = admin_url('post-new.php?post_type=sign&city_id=' . $post->ID);
-    echo '<a href="' . esc_url($add_new_sign_url) . '" class="button">Add New Sign for this City</a>';
-}
+// function city_signs_meta_box() { ... } // REMOVED - merged into main panel
+// function city_signs_meta_box_callback( $post ) { ... } // REMOVED - merged into main panel
+// function add_new_sign_link_meta_box() { ... } // REMOVED - merged into main panel
+// function add_new_sign_link_callback($post) { ... } // REMOVED - merged into main panel
 
 function city_fields_callback( $post ) {
     wp_nonce_field( 'city_save_meta_box_data', 'city_meta_box_nonce' );
@@ -114,59 +68,96 @@ function city_fields_callback( $post ) {
     $count = get_post_meta( $post->ID, '_city_count', true );
     $venue = get_post_meta( $post->ID, '_city_venue', true );
 
-    echo '<p><label for="city_lat">Latitude: </label>';
-    echo '<input type="text" id="city_lat" name="city_lat" value="' . esc_attr( $lat ) . '" size="25" /></p>';
-
-    echo '<p><label for="city_lng">Longitude: </label>';
-    echo '<input type="text" id="city_lng" name="city_lng" value="' . esc_attr( $lng ) . '" size="25" /></p>';
-
-    echo '<p><label for="city_count">Count: </label>';
-    echo '<input type="text" id="city_count" name="city_count" value="' . esc_attr( $count ) . '" size="25" /></p>';
-
     // Visual Pin Selector for Venue
     $pins = osm_get_pins();
+    
+    // Actions Links
+    $add_new_sign_url = admin_url('post-new.php?post_type=sign&city_id=' . $post->ID);
+    $view_signs_url = admin_url('edit.php?post_type=sign'); // We can't easily filter by meta in standard list without custom query var, but this links to list.
+    // NOTE: To properly filter "Signs in this City", we'd need a custom admin filter. 
+    // For now linking to the general list. A more advanced implementation would require `pre_get_posts`.
     ?>
-    <style>
-        .pin-selector-wrap {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); /* Increased min-width */
-            gap: 10px;
-        }
-        .pin-selector-item input[type="radio"] {
-            display: none;
-        }
-        .pin-selector-item label {
-            display: block;
-            cursor: pointer;
-            text-align: center;
-            padding: 10px 5px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            transition: background-color 0.2s ease, border-color 0.2s ease;
-        }
-        .pin-selector-item label img {
-            width: 32px;
-            height: 32px;
-            display: block;
-            margin: 0 auto 5px;
-        }
-        .pin-selector-item input[type="radio"]:checked + label {
-            background-color: #f0f0f0;
-            border-color: #0073aa;
-            box-shadow: 0 0 5px rgba(0,115,170,0.5);
-        }
-    </style>
-    <p><strong>Venue Pin:</strong></p>
-    <div class="pin-selector-wrap">
-        <?php foreach ($pins as $pin) : ?>
-            <div class="pin-selector-item">
-                <input type="radio" id="venue_<?php echo esc_attr($pin['venue']); ?>" name="city_venue" value="<?php echo esc_attr($pin['venue']); ?>" <?php checked($venue, $pin['venue']); ?>>
-                <label for="venue_<?php echo esc_attr($pin['venue']); ?>">
-                    <img src="<?php echo esc_url($pin['url']); ?>" alt="<?php echo esc_attr($pin['venue']); ?>">
-                    <span><?php echo esc_html(ucfirst(str_replace('-', ' ', $pin['venue']))); ?></span>
-                </label>
+    
+    <div class="osm-panel">
+        <div class="osm-panel-header">
+            <h3>City Settings</h3>
+            <div class="osm-btn-group">
+                <a href="<?php echo esc_url($add_new_sign_url); ?>" class="osm-btn osm-btn-primary">
+                    <span class="dashicons dashicons-plus-alt2"></span> Add New Sign
+                </a>
             </div>
-        <?php endforeach; ?>
+        </div>
+
+        <ul class="osm-tabs">
+            <li><a href="#osm-city-tab-details" class="active">City Details</a></li>
+            <li><a href="#osm-city-tab-venue">Venue Pin</a></li>
+            <li><a href="#osm-city-tab-signs">Signs</a></li>
+        </ul>
+
+        <div class="osm-tab-content">
+            <!-- TAB 1: DETAILS -->
+            <div id="osm-city-tab-details" class="osm-tab-pane active">
+                <div style="display: flex; gap: 20px;">
+                    <div class="osm-form-group" style="flex: 1;">
+                        <label for="city_lat">Latitude</label>
+                        <input type="text" id="city_lat" name="city_lat" value="<?php echo esc_attr( $lat ); ?>" placeholder="e.g. 40.7128" />
+                    </div>
+                    <div class="osm-form-group" style="flex: 1;">
+                        <label for="city_lng">Longitude</label>
+                        <input type="text" id="city_lng" name="city_lng" value="<?php echo esc_attr( $lng ); ?>" placeholder="e.g. -74.0060" />
+                    </div>
+                </div>
+
+                <div class="osm-form-group">
+                    <label for="city_count">Display Count <span class="description">(Number shown on cluster)</span></label>
+                    <input type="text" id="city_count" name="city_count" value="<?php echo esc_attr( $count ); ?>" placeholder="e.g. 5" />
+                </div>
+            </div>
+
+            <!-- TAB 2: VENUE -->
+            <div id="osm-city-tab-venue" class="osm-tab-pane">
+                <div class="osm-form-group">
+                    <label>Venue Pin</label>
+                    <div class="pin-selector-wrap">
+                        <?php foreach ($pins as $pin) : ?>
+                            <div class="pin-selector-item">
+                                <input type="radio" id="city_venue_<?php echo esc_attr($pin['venue']); ?>" name="city_venue" value="<?php echo esc_attr($pin['venue']); ?>" <?php checked($venue, $pin['venue']); ?>>
+                                <label for="city_venue_<?php echo esc_attr($pin['venue']); ?>">
+                                    <img src="<?php echo esc_url($pin['url']); ?>" alt="<?php echo esc_attr($pin['venue']); ?>">
+                                    <span><?php echo esc_html(ucfirst(str_replace('-', ' ', $pin['venue']))); ?></span>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: SIGNS LIST -->
+            <div id="osm-city-tab-signs" class="osm-tab-pane">
+                <div class="osm-form-group">
+                    <label>Signs in this City</label>
+                    <?php
+                    $args = array(
+                        'post_type' => 'sign',
+                        'posts_per_page' => -1,
+                        'meta_key' => '_sign_city_id',
+                        'meta_value' => $post->ID,
+                    );
+                    $signs = get_posts( $args );
+                    if ( $signs ) {
+                        echo '<ul style="margin-top: 10px; list-style: disc; margin-left: 20px;">';
+                        foreach ( $signs as $sign ) {
+                            $edit_link = get_edit_post_link( $sign->ID );
+                            echo '<li><a href="' . esc_url( $edit_link ) . '" style="text-decoration: none; font-weight: 500;">' . esc_html( $sign->post_title ) . '</a></li>';
+                        }
+                        echo '</ul>';
+                    } else {
+                        echo '<p class="description">No signs found for this city.</p>';
+                    }
+                    ?>
+                </div>
+            </div>
+        </div>
     </div>
     <?php
 }
@@ -218,88 +209,119 @@ add_action( 'add_meta_boxes', 'sign_custom_fields' );
 function sign_fields_callback( $post ) {
     wp_nonce_field( 'sign_save_meta_box_data', 'sign_meta_box_nonce' );
 
+    // --- DATA PREP ---
     $lat = get_post_meta( $post->ID, '_sign_lat', true );
     $lng = get_post_meta( $post->ID, '_sign_lng', true );
     $venue = get_post_meta( $post->ID, '_sign_venue', true );
-    $selected_city_id = get_post_meta( $post->ID, '_sign_city_id', true ); // Get the stored city ID
+    $selected_city_id = get_post_meta( $post->ID, '_sign_city_id', true );
     $sign_image_url = get_post_meta( $post->ID, '_sign_image_url', true );
-
+    
     if (isset($_GET['city_id'])) {
         $selected_city_id = intval($_GET['city_id']);
     }
 
-    echo '<p><label for="sign_lat">Latitude: </label>';
-    echo '<input type="text" id="sign_lat" name="sign_lat" value="' . esc_attr( $lat ) . '" size="25" /></p>';
-
-    echo '<p><label for="sign_lng">Longitude: </label>';
-    echo '<input type="text" id="sign_lng" name="sign_lng" value="' . esc_attr( $lng ) . '" size="25" /></p>';
-
-    echo '<p><label for="sign_image_url">External Image URL: </label>';
-    echo '<input type="text" id="sign_image_url" name="sign_image_url" value="' . esc_attr( $sign_image_url ) . '" size="25" /></p>';
-    echo '<p><em>If you provide an external image URL, it will be used instead of the featured image.</em></p>';
-
-    
-    echo '<p><label for="sign_city_id">City: </label>';
-    echo '<select id="sign_city_id" name="sign_city_id">';
-    echo '<option value="">Select a City</option>';
-
-    $cities = get_posts( array(
-        'post_type' => 'city',
-        'posts_per_page' => -1,
-        'orderby' => 'title',
-        'order' => 'ASC',
-    ) );
-
-    foreach ( $cities as $city_post ) {
-        $selected = selected( $selected_city_id, $city_post->ID, false );
-        echo '<option value="' . esc_attr( $city_post->ID ) . '" ' . $selected . '>' . esc_html( $city_post->post_title ) . '</option>';
-    }
-    echo '</select></p>';
+    $cta_behavior = get_post_meta( $post->ID, '_sign_cta_behavior', true ) ?: 'default';
+    $cta_url = get_post_meta( $post->ID, '_sign_cta_url', true );
 
     // Visual Pin Selector for Venue
     $pins = osm_get_pins();
     ?>
-    <style>
-        .pin-selector-wrap {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); /* Increased min-width */
-            gap: 10px;
-        }
-        .pin-selector-item input[type="radio"] {
-            display: none;
-        }
-        .pin-selector-item label {
-            display: block;
-            cursor: pointer;
-            text-align: center;
-            padding: 10px 5px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            transition: background-color 0.2s ease, border-color 0.2s ease;
-        }
-        .pin-selector-item label img {
-            width: 32px;
-            height: 32px;
-            display: block;
-            margin: 0 auto 5px;
-        }
-        .pin-selector-item input[type="radio"]:checked + label {
-            background-color: #f0f0f0;
-            border-color: #0073aa;
-            box-shadow: 0 0 5px rgba(0,115,170,0.5);
-        }
-    </style>
-    <p><strong>Venue Pin:</strong></p>
-    <div class="pin-selector-wrap">
-        <?php foreach ($pins as $pin) : ?>
-            <div class="pin-selector-item">
-                <input type="radio" id="venue_<?php echo esc_attr($pin['venue']); ?>" name="sign_venue" value="<?php echo esc_attr($pin['venue']); ?>" <?php checked($venue, $pin['venue']); ?>>
-                <label for="venue_<?php echo esc_attr($pin['venue']); ?>">
-                    <img src="<?php echo esc_url($pin['url']); ?>" alt="<?php echo esc_attr($pin['venue']); ?>">
-                    <span><?php echo esc_html(ucfirst(str_replace('-', ' ', $pin['venue']))); ?></span>
-                </label>
+    
+    <div class="osm-panel">
+        <ul class="osm-tabs">
+            <li><a href="#osm-sign-tab-location" class="active">Map Details</a></li>
+            <li><a href="#osm-sign-tab-venue">Venue Pin</a></li>
+            <li><a href="#osm-sign-tab-media">Media</a></li>
+            <li><a href="#osm-sign-tab-action">Action Button</a></li>
+        </ul>
+
+        <div class="osm-tab-content">
+            <!-- TAB 1: LOCATION -->
+            <div id="osm-sign-tab-location" class="osm-tab-pane active">
+                <div class="osm-form-group">
+                    <label for="sign_city_id">City</label>
+                    <select id="sign_city_id" name="sign_city_id">
+                        <option value="">Select a City</option>
+                        <?php
+                        $cities = get_posts( array(
+                            'post_type' => 'city',
+                            'posts_per_page' => -1,
+                            'orderby' => 'title',
+                            'order' => 'ASC',
+                        ) );
+                        foreach ( $cities as $city_post ) {
+                            $selected = selected( $selected_city_id, $city_post->ID, false );
+                            echo '<option value="' . esc_attr( $city_post->ID ) . '" ' . $selected . '>' . esc_html( $city_post->post_title ) . '</option>';
+                        }
+                        ?>
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 20px;">
+                    <div class="osm-form-group" style="flex: 1;">
+                        <label for="sign_lat">Latitude</label>
+                        <input type="text" id="sign_lat" name="sign_lat" value="<?php echo esc_attr( $lat ); ?>" placeholder="e.g. 40.7128" />
+                    </div>
+                    <div class="osm-form-group" style="flex: 1;">
+                        <label for="sign_lng">Longitude</label>
+                        <input type="text" id="sign_lng" name="sign_lng" value="<?php echo esc_attr( $lng ); ?>" placeholder="e.g. -74.0060" />
+                    </div>
+                </div>
             </div>
-        <?php endforeach; ?>
+
+            <!-- TAB 2: VENUE PIN -->
+            <div id="osm-sign-tab-venue" class="osm-tab-pane">
+                <div class="osm-form-group">
+                    <label>Venue Pin</label>
+                    <div class="pin-selector-wrap">
+                        <?php foreach ($pins as $pin) : ?>
+                            <div class="pin-selector-item">
+                                <input type="radio" id="venue_<?php echo esc_attr($pin['venue']); ?>" name="sign_venue" value="<?php echo esc_attr($pin['venue']); ?>" <?php checked($venue, $pin['venue']); ?>>
+                                <label for="venue_<?php echo esc_attr($pin['venue']); ?>">
+                                    <img src="<?php echo esc_url($pin['url']); ?>" alt="<?php echo esc_attr($pin['venue']); ?>">
+                                    <span><?php echo esc_html(ucfirst(str_replace('-', ' ', $pin['venue']))); ?></span>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: MEDIA -->
+            <div id="osm-sign-tab-media" class="osm-tab-pane">
+                <div class="osm-form-group">
+                    <label for="sign_image_url">External Image URL <span class="description">(Optional)</span></label>
+                    <input type="text" id="sign_image_url" name="sign_image_url" value="<?php echo esc_attr( $sign_image_url ); ?>" placeholder="https://..." />
+                    <p class="osm-helper-text">If provided, this URL will be prioritized over the Featured Image based on global settings.</p>
+                </div>
+            </div>
+
+            <!-- TAB 4: ACTION BUTTON -->
+            <div id="osm-sign-tab-action" class="osm-tab-pane">
+                <div class="osm-form-group">
+                    <label>CTA Button Behavior</label>
+                    <div class="osm-radio-group">
+                        <label>
+                            <input type="radio" name="sign_cta_behavior" value="default" <?php checked($cta_behavior, 'default'); ?>> 
+                            <span>Default (Global)</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="sign_cta_behavior" value="custom" <?php checked($cta_behavior, 'custom'); ?>> 
+                            <span>Enable & Override</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="sign_cta_behavior" value="disable" <?php checked($cta_behavior, 'disable'); ?>> 
+                            <span>Disable Button</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="osm-form-group" id="sign_cta_url_wrapper" style="<?php echo ($cta_behavior === 'custom') ? '' : 'display:none;'; ?>">
+                    <label for="sign_cta_url">Custom CTA URL</label>
+                    <input type="text" id="sign_cta_url" name="sign_cta_url" value="<?php echo esc_attr( $cta_url ); ?>" placeholder="https://example.com" />
+                </div>
+            </div>
+        </div>
     </div>
     <?php
 }
@@ -338,6 +360,13 @@ function sign_save_meta_box_data( $post_id ) {
             update_post_meta( $post_id, '_sign_city', $city_post->post_title );
         }
     }
+
+    if ( isset( $_POST['sign_cta_behavior'] ) ) {
+        update_post_meta( $post_id, '_sign_cta_behavior', sanitize_text_field( $_POST['sign_cta_behavior'] ) );
+    }
+    if ( isset( $_POST['sign_cta_url'] ) ) {
+        update_post_meta( $post_id, '_sign_cta_url', sanitize_text_field( $_POST['sign_cta_url'] ) );
+    }
 }
 add_action( 'save_post', 'sign_save_meta_box_data' );
 
@@ -355,17 +384,32 @@ function add_city_column_to_signs_list( $columns ) {
 add_filter( 'manage_sign_posts_columns', 'add_city_column_to_signs_list' );
 
 // Populate custom column for Signs
+// Custom Column Population
 function populate_city_column_for_signs( $column, $post_id ) {
     if ( 'sign_city' === $column ) {
         $city_id = get_post_meta( $post_id, '_sign_city_id', true );
         $city_name = get_post_meta( $post_id, '_sign_city', true );
-
-        if ( $city_id && $city_name ) {
-            $city_edit_link = get_edit_post_link( $city_id );
-            echo '<a href="' . esc_url( $city_edit_link ) . '">' . esc_html( $city_name ) . '</a>';
+        
+        if ( $city_id ) {
+            // If we have an ID, try to get the current title in case it changed
+            $city_post = get_post($city_id);
+            if ($city_post) {
+                $city_name = $city_post->post_title;
+                $city_edit_link = get_edit_post_link( $city_id );
+                echo '<a href="' . esc_url( $city_edit_link ) . '">' . esc_html( $city_name ) . '</a>';
+            } else {
+                echo esc_html( $city_name ); // Fallback to saved name
+            }
         } else {
-            echo esc_html( $city_name );
+             echo '—';
         }
     }
 }
 add_action( 'manage_sign_posts_custom_column', 'populate_city_column_for_signs', 10, 2 );
+
+// Remove "Slug" Meta Box from City and Sign screens
+function osm_remove_slug_meta_box() {
+    remove_meta_box( 'slugdiv', 'city', 'normal' );
+    remove_meta_box( 'slugdiv', 'sign', 'normal' );
+}
+add_action( 'admin_menu', 'osm_remove_slug_meta_box' );

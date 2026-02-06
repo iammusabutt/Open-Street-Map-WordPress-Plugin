@@ -11,18 +11,7 @@ async function searchCity(city) {
     return;
   }
 
-  // 2. Try Local Search (Fuzzy Match with Fuse.js)
-  if (window.fuse) {
-    const fuzzyResult = window.fuse.search(input);
-    if (fuzzyResult.length > 0 && fuzzyResult[0].score < 0.3) {
-      const bestMatch = fuzzyResult[0].item;
-      console.log(`Fuzzy match found: ${input} -> ${bestMatch.name}`);
-      map.flyTo({ center: bestMatch.coords, zoom: 10, speed: 0.7 });
-      return;
-    }
-  }
-
-  // 3. Fallback: Nominatim API (via Backend Proxy to avoid CORS)
+  // 2. Fallback: Nominatim API (via Backend Proxy to avoid CORS)
   const url = `${plugin_vars.proxy_url}?q=${encodeURIComponent(input)}`;
 
   try {
@@ -39,15 +28,54 @@ async function searchCity(city) {
       // Fly to the found location
       map.flyTo({ center: [lon, lat], zoom: 10, speed: 0.7 });
     } else {
+      // 3. Nominatim returned no results -> Try Local Fuzzy Match (Fuse.js)
+      if (window.fuse) {
+        const fuzzyResult = window.fuse.search(input);
+        if (fuzzyResult.length > 0 && fuzzyResult[0].score < 0.3) {
+          const bestMatch = fuzzyResult[0].item;
+          console.log(`Nominatim failed, but local fuzzy match found: ${input} -> ${bestMatch.name}`);
+          map.flyTo({ center: bestMatch.coords, zoom: 10, speed: 0.7 });
+          return;
+        }
+      }
+
       alert("City not found in local database or via global search.");
     }
   } catch (error) {
     console.error("Nominatim search failed:", error);
+    // On API error, also try local fuzzy search as a backup
+    if (window.fuse) {
+      const fuzzyResult = window.fuse.search(input);
+      if (fuzzyResult.length > 0 && fuzzyResult[0].score < 0.3) {
+        const bestMatch = fuzzyResult[0].item;
+        console.log(`Nominatim error, fallback to local fuzzy match: ${input} -> ${bestMatch.name}`);
+        map.flyTo({ center: bestMatch.coords, zoom: 10, speed: 0.7 });
+        return;
+      }
+    }
     alert("Search failed. Please try again.");
   }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Apply Custom Colors
+  if (plugin_vars.colors) {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .map-container .maplibregl-popup-content {
+          background-color: ${plugin_vars.colors.popup_bg} !important;
+      }
+      .map-container .popup strong {
+          color: ${plugin_vars.colors.popup_text} !important;
+      }
+      .map-container .popup .cta {
+          background-color: ${plugin_vars.colors.popup_btn_bg} !important;
+          color: ${plugin_vars.colors.popup_btn_text} !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   // ===== DYNAMIC DATA FETCHING =====
   let CLUSTER_CITIES = [];
   let SIGN_DATA = [];
@@ -130,6 +158,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         title: s.title,
         img: s.img,
         href: s.href,
+        cta_behavior: s.cta_behavior,
+        cta_url: s.cta_url,
       },
     })),
   };
@@ -178,13 +208,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       },
     });
 
+    const bubbleColor = plugin_vars.colors.bubble_color || "#ff3e86";
+
     map.addLayer({
       id: "cluster-bubbles",
       type: "circle",
       source: "cityClusters",
       filter: ["has", "point_count"], // ⭐ clustered features only
       paint: {
-        "circle-color": "#ff3e86",
+        "circle-color": bubbleColor,
         "circle-radius": [
           "step",
           ["get", "totalCount"], // ⭐ summed cluster count
@@ -207,7 +239,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       source: "cityClusters",
       filter: ["!", ["has", "point_count"]], // ⭐ NOT clusters
       paint: {
-        "circle-color": "#ff3e86",
+        "circle-color": bubbleColor,
         "circle-radius": 25,
         "circle-stroke-color": "#fff",
         "circle-stroke-width": 2,
@@ -227,7 +259,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       },
       paint: {
         "text-color": "#fff",
-        "text-halo-color": "#ff3e86",
+        "text-halo-color": bubbleColor,
         "text-halo-width": 1.5,
       },
     });
@@ -243,7 +275,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       },
       paint: {
         "text-color": "#fff",
-        "text-halo-color": "#ff3e86",
+        "text-halo-color": bubbleColor,
         "text-halo-width": 1.5,
       },
     });
@@ -319,6 +351,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       },
     });
 
+    // Helper to determine CTA URL and visibility
+    function getCTAUrl(behavior, customUrl) {
+      const globalDisable = plugin_vars.cta.global_disable === 'yes';
+      const defaultUrl = plugin_vars.cta.default_url;
+
+      if (behavior === 'disable') return null;
+      if (behavior === 'custom') return customUrl;
+
+      // Default behavior
+      if (globalDisable) return null;
+      return defaultUrl;
+    }
+
     // ===== POPUP LOGIC FOR CITY CLUSTERS =====
     let activePopup = null;
     let popupLocked = false;
@@ -336,12 +381,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       );
       if (!city) return;
 
+      // Cities currently use global default settings
+      const ctaUrl = getCTAUrl('default', null);
+      const ctaHtml = ctaUrl ? `<a href="${ctaUrl}" target="_blank" class="cta">Log in to get started</a>` : '';
+
       const title = `${city.venue} in ${city.name}`;
       const popupHTML = `
                 <div class="popup">
                   <img src="${city.img}" alt="${city.venue}">
                   <strong>${city.venue} in ${city.name}</strong>
-                  <a href="https://marketplace.blipbillboards.com/register" target="_blank" class="cta">Log in to get started</a>
+                  ${ctaHtml}
                 </div>
               `;
 
@@ -426,6 +475,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       // === 4️⃣ Show the popup at the same time ===
       const p = feature.properties;
+
+      const ctaUrl = getCTAUrl(p.cta_behavior, p.cta_url);
+      const ctaHtml = ctaUrl ? `<a href="${ctaUrl}" target="_blank" class="cta">Log in to get started</a>` : '';
+
       new maplibregl.Popup({ offset: 20 })
         .setLngLat(feature.geometry.coordinates)
         .setHTML(
@@ -433,7 +486,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     <div class="popup">
       <img src="${p.img}" alt="${p.title}">
       <strong>${p.title}</strong><br/>
-      <a href="${p.href}" target="_blank" class="cta">Log in to get started</a>
+      ${ctaHtml}
     </div>
   `
         )

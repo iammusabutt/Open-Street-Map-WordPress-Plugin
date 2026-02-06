@@ -95,6 +95,8 @@ function get_signs_data() {
             ],
             'img' => $image_url,
             'href' => '#',
+            'cta_behavior' => get_post_meta( $post->ID, '_sign_cta_behavior', true ) ?: 'default',
+            'cta_url' => get_post_meta( $post->ID, '_sign_cta_url', true )
         );
     }
     return $data;

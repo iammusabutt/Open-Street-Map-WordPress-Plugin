@@ -23,14 +23,36 @@ function open_street_map_enqueue_scripts() {
         'cities_url' => get_rest_url( null, 'osm/v1/cities' ),
         'signs_url' => get_rest_url( null, 'osm/v1/signs' ),
         'proxy_url' => get_rest_url( null, 'osm/v1/proxy-search' ),
+        'colors' => array(
+            'popup_bg' => get_option('osm_popup_bg_color', '#ffffff'),
+            'popup_btn_bg' => get_option('osm_popup_btn_bg_color', '#007bff'),
+            'popup_btn_text' => get_option('osm_popup_btn_text_color', '#ffffff'),
+            'popup_text' => get_option('osm_popup_text_color', '#1a1a1a'),
+            'bubble_color' => get_option('osm_bubble_color', '#ff3e86'),
+        ),
+        'cta' => array(
+            'default_url' => get_option('osm_default_cta_url', ''),
+            'global_disable' => get_option('osm_disable_cta_button', 'no'),
+        )
     ) );
 }
 add_action( 'wp_enqueue_scripts', 'open_street_map_enqueue_scripts' );
 
 function osm_enqueue_admin_scripts($hook) {
-    if ($hook !== 'openstreetmap_page_osm-settings') {
+    $screen = get_current_screen();
+    
+    // Check if we are on the OSM settings page OR on the 'sign' or 'city' post edit page
+    $is_settings_page = ($hook === 'openstreetmap_page_osm-settings');
+    $is_post_edit_page = ($screen && ($screen->post_type === 'sign' || $screen->post_type === 'city') && ($hook === 'post.php' || $hook === 'post-new.php'));
+
+    if ( ! $is_settings_page && ! $is_post_edit_page ) {
         return;
     }
     wp_enqueue_style( 'osm-admin-style', plugin_dir_url( __FILE__ ) . '../css/admin-style.css' );
+    wp_enqueue_style( 'wp-color-picker' );
+    wp_enqueue_script( 'osm-admin-script', plugin_dir_url( __FILE__ ) . '../admin/admin.js', array( 'jquery', 'wp-color-picker' ), false, true );
+    wp_localize_script( 'osm-admin-script', 'osm_admin_vars', array(
+        'nonce' => wp_create_nonce( 'osm_ajax_nonce' )
+    ) );
 }
 add_action( 'admin_enqueue_scripts', 'osm_enqueue_admin_scripts' );
