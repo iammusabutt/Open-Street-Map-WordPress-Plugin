@@ -383,7 +383,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       // Cities currently use global default settings
       const ctaUrl = getCTAUrl('default', null);
-      const ctaHtml = ctaUrl ? `<a href="${ctaUrl}" target="_blank" class="cta">Log in to get started</a>` : '';
+      const btnText = plugin_vars.cta.button_text || 'Log in to get started';
+      const ctaHtml = ctaUrl ? `<a href="${ctaUrl}" target="_blank" class="cta">${btnText}</a>` : '';
 
       const title = `${city.venue} in ${city.name}`;
       const popupHTML = `
@@ -477,7 +478,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       const p = feature.properties;
 
       const ctaUrl = getCTAUrl(p.cta_behavior, p.cta_url);
-      const ctaHtml = ctaUrl ? `<a href="${ctaUrl}" target="_blank" class="cta">Log in to get started</a>` : '';
+      const btnText = plugin_vars.cta.button_text || 'Log in to get started';
+
+      const ctaHtml = ctaUrl ? `<a href="${ctaUrl}" target="_blank" class="cta">${btnText}</a>` : '';
 
       new maplibregl.Popup({ offset: 20 })
         .setLngLat(feature.geometry.coordinates)

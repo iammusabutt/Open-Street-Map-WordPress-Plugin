@@ -67,6 +67,10 @@ function city_fields_callback( $post ) {
     $lng = get_post_meta( $post->ID, '_city_lng', true );
     $count = get_post_meta( $post->ID, '_city_count', true );
     $venue = get_post_meta( $post->ID, '_city_venue', true );
+    // Handle legacy/alias value
+    if ( 'Billboard' === $venue ) {
+        $venue = 'default';
+    }
 
     // Visual Pin Selector for Venue
     $pins = osm_get_pins();
@@ -213,6 +217,10 @@ function sign_fields_callback( $post ) {
     $lat = get_post_meta( $post->ID, '_sign_lat', true );
     $lng = get_post_meta( $post->ID, '_sign_lng', true );
     $venue = get_post_meta( $post->ID, '_sign_venue', true );
+    // Handle legacy/alias value
+    if ( 'Billboard' === $venue ) {
+        $venue = 'default';
+    }
     $selected_city_id = get_post_meta( $post->ID, '_sign_city_id', true );
     $sign_image_url = get_post_meta( $post->ID, '_sign_image_url', true );
     

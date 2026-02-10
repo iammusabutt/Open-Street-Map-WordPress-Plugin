@@ -103,6 +103,9 @@ function osm_settings_page_html() {
                 <div id="settings" class="osm-admin-tab-pane active">
                     <h2 class="osm-tab-title">General Settings</h2>
                     <form id="osm-settings-form">
+                        
+                        <!-- Image Settings -->
+                        <h3>Image Settings</h3>
                         <table class="form-table">
                             <tr valign="top">
                                 <th scope="row">Use External Image</th>
@@ -118,11 +121,25 @@ function osm_settings_page_html() {
                                     <p class="description">If this option is switched to "Yes," the external image URL field will be prioritized over the featured image for signs.</p>
                                 </td>
                             </tr>
+                        </table>
+
+                        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+
+                        <!-- Map Box Settings -->
+                        <h3>Map Box Settings</h3>
+                        <table class="form-table">
                             <tr valign="top">
                                 <th scope="row">Default CTA URL</th>
                                 <td>
                                     <input type="text" name="osm_default_cta_url" class="regular-text" value="<?php echo esc_attr( get_option('osm_default_cta_url', '') ); ?>" placeholder="https://example.com" />
                                     <p class="description">This URL will be used for buttons on the map popups by default.</p>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row">Popup Button Text</th>
+                                <td>
+                                    <input type="text" name="osm_popup_button_text" class="regular-text" value="<?php echo esc_attr( get_option('osm_popup_button_text', '') ); ?>" placeholder="Log in to get started" />
+                                    <p class="description">Text to display on the popup button. Leave empty for default ("Log in to get started").</p>
                                 </td>
                             </tr>
                             <tr valign="top">
@@ -140,6 +157,7 @@ function osm_settings_page_html() {
                                 </td>
                             </tr>
                         </table>
+                        
                         <p class="submit">
                             <button type="submit" class="button-primary">Save Changes</button>
                         </p>

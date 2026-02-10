@@ -201,6 +201,8 @@
     background: #fff;
     transition: all 0.2s ease;
     height: 100%;
+    position: relative;
+    /* Added for checkmark positioning */
 }
 
 .pin-selector-item label:hover {
@@ -211,8 +213,30 @@
 
 .pin-selector-item input[type="radio"]:checked+label {
     border-color: #2271b1;
-    background: #f6f7f7;
+    border-width: 2px;
+    background: #f0f6fc;
+    /* Lighter blue background */
     box-shadow: 0 0 0 1px #2271b1;
+}
+
+/* Checkmark Badge */
+.pin-selector-item input[type="radio"]:checked+label::after {
+    content: "\f147";
+    /* dashicons-yes */
+    font-family: dashicons;
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #2271b1;
+    color: #fff;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .pin-selector-item img {

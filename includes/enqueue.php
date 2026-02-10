@@ -33,6 +33,7 @@ function open_street_map_enqueue_scripts() {
         'cta' => array(
             'default_url' => get_option('osm_default_cta_url', ''),
             'global_disable' => get_option('osm_disable_cta_button', 'no'),
+            'button_text' => get_option('osm_popup_button_text', 'Log in to get started'),
         )
     ) );
 }
