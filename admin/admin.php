@@ -154,6 +154,7 @@ function osm_settings_page_html() {
                 <div id="settings" class="osm-admin-tab-pane active">
                     <h2 class="osm-tab-title">General Settings</h2>
                     <form id="osm-settings-form">
+                        <input type="hidden" name="osm_settings_group" value="general">
                         
                         <!-- Image Settings -->
                         <h3>Image Settings</h3>
@@ -267,6 +268,7 @@ function osm_settings_page_html() {
                 <div id="colors" class="osm-admin-tab-pane">
                     <h2 class="osm-tab-title">Color Settings</h2>
                     <form id="osm-settings-form-colors">
+                        <input type="hidden" name="osm_settings_group" value="colors">
                         <table class="form-table">
                             <tr valign="top">
                                 <th scope="row">Popup Background Color</th>
@@ -309,6 +311,7 @@ function osm_settings_page_html() {
                     <h2 class="osm-tab-title">Map Layers</h2>
                     <p>Select the visual style for the map tiles.</p>
                     <form id="osm-settings-form-layers">
+                        <input type="hidden" name="osm_settings_group" value="layers">
                         <div class="layer-selector">
                             <!-- Standard OSM -->
                             <label class="layer-option <?php echo (get_option('osm_map_layer', 'standard') === 'standard') ? 'selected' : ''; ?>">

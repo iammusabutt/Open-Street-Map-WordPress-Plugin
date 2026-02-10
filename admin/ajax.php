@@ -275,46 +275,55 @@ function osm_ajax_save_settings() {
         wp_send_json_error('You do not have permission to perform this action.');
     }
 
-    if (isset($_POST['osm_image_priority'])) {
-        update_option('osm_image_priority', sanitize_text_field($_POST['osm_image_priority']));
-    } else {
-        update_option('osm_image_priority', 'featured');
-    }
+    $settings_group = isset($_POST['osm_settings_group']) ? sanitize_text_field($_POST['osm_settings_group']) : 'all';
 
-    if (isset($_POST['osm_default_cta_url'])) {
-        update_option('osm_default_cta_url', sanitize_text_field($_POST['osm_default_cta_url']));
-    }
+    // Save General Settings
+    if ($settings_group === 'general' || $settings_group === 'all') {
+        if (isset($_POST['osm_image_priority'])) {
+            update_option('osm_image_priority', sanitize_text_field($_POST['osm_image_priority']));
+        } else {
+            update_option('osm_image_priority', 'featured');
+        }
 
-    if (isset($_POST['osm_popup_button_text'])) {
-        update_option('osm_popup_button_text', sanitize_text_field($_POST['osm_popup_button_text']));
-    }
-    
-    if (isset($_POST['osm_disable_cta_button'])) {
-        update_option('osm_disable_cta_button', 'yes');
-    } else {
-        update_option('osm_disable_cta_button', 'no');
+        if (isset($_POST['osm_default_cta_url'])) {
+            update_option('osm_default_cta_url', sanitize_text_field($_POST['osm_default_cta_url']));
+        }
+        
+        if (isset($_POST['osm_popup_button_text'])) {
+            update_option('osm_popup_button_text', sanitize_text_field($_POST['osm_popup_button_text']));
+        }
+        
+        if (isset($_POST['osm_disable_cta_button'])) {
+            update_option('osm_disable_cta_button', 'yes');
+        } else {
+            update_option('osm_disable_cta_button', 'no');
+        }
     }
 
     // Save Color Settings
-    if (isset($_POST['osm_popup_bg_color'])) {
-        update_option('osm_popup_bg_color', sanitize_hex_color($_POST['osm_popup_bg_color']));
-    }
-    if (isset($_POST['osm_popup_btn_bg_color'])) {
-        update_option('osm_popup_btn_bg_color', sanitize_hex_color($_POST['osm_popup_btn_bg_color']));
-    }
-    if (isset($_POST['osm_popup_btn_text_color'])) {
-        update_option('osm_popup_btn_text_color', sanitize_hex_color($_POST['osm_popup_btn_text_color']));
-    }
-    if (isset($_POST['osm_popup_text_color'])) {
-        update_option('osm_popup_text_color', sanitize_hex_color($_POST['osm_popup_text_color']));
-    }
-    if (isset($_POST['osm_bubble_color'])) {
-        update_option('osm_bubble_color', sanitize_hex_color($_POST['osm_bubble_color']));
+    if ($settings_group === 'colors' || $settings_group === 'all') {
+        if (isset($_POST['osm_popup_bg_color'])) {
+            update_option('osm_popup_bg_color', sanitize_hex_color($_POST['osm_popup_bg_color']));
+        }
+        if (isset($_POST['osm_popup_btn_bg_color'])) {
+            update_option('osm_popup_btn_bg_color', sanitize_hex_color($_POST['osm_popup_btn_bg_color']));
+        }
+        if (isset($_POST['osm_popup_btn_text_color'])) {
+            update_option('osm_popup_btn_text_color', sanitize_hex_color($_POST['osm_popup_btn_text_color']));
+        }
+        if (isset($_POST['osm_popup_text_color'])) {
+            update_option('osm_popup_text_color', sanitize_hex_color($_POST['osm_popup_text_color']));
+        }
+        if (isset($_POST['osm_bubble_color'])) {
+            update_option('osm_bubble_color', sanitize_hex_color($_POST['osm_bubble_color']));
+        }
     }
 
     // Save Map Layer
-    if (isset($_POST['osm_map_layer'])) {
-        update_option('osm_map_layer', sanitize_text_field($_POST['osm_map_layer']));
+    if ($settings_group === 'layers' || $settings_group === 'all') {
+        if (isset($_POST['osm_map_layer'])) {
+            update_option('osm_map_layer', sanitize_text_field($_POST['osm_map_layer']));
+        }
     }
 
     wp_send_json_success();
