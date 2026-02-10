@@ -15,7 +15,7 @@
     border-radius: 16px;
     overflow: hidden;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-	margin: 0 auto;
+    margin: 0 auto;
 }
 
 .map-container #map {
@@ -87,7 +87,7 @@
     padding: 8px 12px;
     cursor: pointer;
     font-size: 14px;
-	margin-bottom: 0;
+    margin-bottom: 0;
 }
 
 .map-container #suggestions li:hover {
@@ -154,17 +154,55 @@
     .mobile-spacing {
         padding: 0 24px;
     }
+
     .map-container {
         border-radius: 0;
     }
-    .map-container .search-box, 
+
+    .map-container .search-box,
     .map-container .search-bar {
         max-width: 343px;
     }
+
     .map-container .search-bar input {
         width: 295px;
     }
+
     .map-container .maplibregl-control-container {
         display: none;
     }
+}
+
+/* --- Toast Notification --- */
+.osm-toast {
+    visibility: hidden;
+    min-width: 250px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 8px;
+    padding: 12px;
+    position: fixed;
+    z-index: 1000;
+    left: 50%;
+    bottom: 30px;
+    transform: translateX(-50%);
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    transition: opacity 0.3s, bottom 0.3s;
+}
+
+.osm-toast.show {
+    visibility: visible;
+    opacity: 1;
+    bottom: 50px;
+}
+
+.osm-toast.error {
+    background-color: #d32f2f;
+}
+
+.osm-toast.success {
+    background-color: #388e3c;
 }

@@ -39,7 +39,7 @@ async function searchCity(city) {
         }
       }
 
-      alert("City not found in local database or via global search.");
+      showToast("City not found in local database or via global search.");
     }
   } catch (error) {
     console.error("Nominatim search failed:", error);
@@ -53,8 +53,29 @@ async function searchCity(city) {
         return;
       }
     }
-    alert("Search failed. Please try again.");
+    showToast("Search failed. Please try again.");
   }
+}
+
+// Toast Notification Helper
+function showToast(message, type = 'error') {
+  // Create toast element if it doesn't exist
+  let toast = document.getElementById('osm-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'osm-toast';
+    toast.className = 'osm-toast';
+    document.body.appendChild(toast);
+  }
+
+  // Set message and type
+  toast.textContent = message;
+  toast.className = `osm-toast show ${type}`;
+
+  // Hide after 3 seconds
+  setTimeout(() => {
+    toast.className = toast.className.replace("show", "");
+  }, 3000);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -107,6 +128,25 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // ===== MAP SETUP =====
+
+  // Determine Tile Layer
+  let tileUrl = "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"; // Default Standard
+  const layer = plugin_vars.map_layer || 'standard';
+
+  if (layer === 'cartodb_positron') {
+    tileUrl = "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
+  } else if (layer === 'cartodb_dark') {
+    tileUrl = "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
+  } else if (layer === 'humanitarian') {
+    tileUrl = "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png";
+  }
+
+  // Attribution
+  let attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  if (layer.startsWith('cartodb')) {
+    attribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  }
+
   map = new maplibregl.Map({
     container: "map",
     style: {
@@ -116,12 +156,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         osm: {
           type: "raster",
           tiles: [
-            "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            tileUrl.replace('{s}', 'a'),
+            tileUrl.replace('{s}', 'b'),
+            tileUrl.replace('{s}', 'c'),
           ],
           tileSize: 256,
-          attribution: "&copy; OpenStreetMap contributors",
+          attribution: attribution,
         },
       },
       layers: [{ id: "osm", type: "raster", source: "osm" }],

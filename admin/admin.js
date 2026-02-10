@@ -342,6 +342,32 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Save settings (Layers)
+    const layersForm = document.getElementById('osm-settings-form-layers');
+    const layerOptions = document.querySelectorAll('.layer-option');
+
+    // Visual selection logic for layers
+    if (layerOptions.length > 0) {
+        layerOptions.forEach(option => {
+            option.addEventListener('click', function () {
+                // Remove selected class from all
+                layerOptions.forEach(opt => opt.classList.remove('selected'));
+                // Add to clicked
+                this.classList.add('selected');
+                // Check the radio button inside
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
+            });
+        });
+    }
+
+    if (layersForm) {
+        layersForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            saveSettings(this);
+        });
+    }
+
     function saveSettings(form) {
         const formData = new FormData(form);
         formData.append('action', 'osm_save_settings');

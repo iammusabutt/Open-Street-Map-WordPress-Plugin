@@ -63,6 +63,51 @@ function osm_settings_page_html() {
             color: #777;
             margin-right: 15px;
         }
+        #osm-pins-panel .pin-item .pin-venue {
+            font-style: italic;
+            color: #777;
+            margin-right: 15px;
+        }
+        /* Map Layer Swatches */
+        .layer-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .layer-option {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .layer-option:hover {
+            border-color: #2271b1;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .layer-option.selected {
+            border-color: #2271b1;
+            box-shadow: 0 0 0 2px #2271b1;
+        }
+        .layer-option img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            display: block;
+        }
+        .layer-option .layer-name {
+            padding: 10px;
+            text-align: center;
+            font-weight: 600;
+            background: #fff;
+            border-top: 1px solid #eee;
+        }
+        .layer-option input[type="radio"] {
+            display: none;
+        }
     </style>
     <div class="wrap osm-admin-wrapper">
         <div class="osm-admin-header">
@@ -96,6 +141,12 @@ function osm_settings_page_html() {
                         <a href="#import" class="nav-tab">
                             <span class="dashicons dashicons-upload"></span>
                             <span>Import Tool</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#layers" class="nav-tab">
+                            <span class="dashicons dashicons-images-alt2"></span>
+                            <span>Map Layers</span>
                         </a>
                     </li>
                 </ul>
@@ -250,6 +301,45 @@ function osm_settings_page_html() {
                         </table>
                         <p class="submit">
                             <button type="submit" class="button-primary">Save Colors</button>
+                        </p>
+                    </form>
+                </div>
+                <!-- Map Layers Tab -->
+                <div id="layers" class="osm-admin-tab-pane">
+                    <h2 class="osm-tab-title">Map Layers</h2>
+                    <p>Select the visual style for the map tiles.</p>
+                    <form id="osm-settings-form-layers">
+                        <div class="layer-selector">
+                            <!-- Standard OSM -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer', 'standard') === 'standard') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="standard" <?php checked(get_option('osm_map_layer', 'standard'), 'standard'); ?>>
+                                <img src="https://a.tile.openstreetmap.org/12/2073/1409.png" alt="Standard">
+                                <div class="layer-name">Standard (OSM)</div>
+                            </label>
+
+                            <!-- CartoDB Positron (Light) -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer') === 'cartodb_positron') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="cartodb_positron" <?php checked(get_option('osm_map_layer'), 'cartodb_positron'); ?>>
+                                <img src="https://a.basemaps.cartocdn.com/light_all/12/2073/1409.png" alt="CartoDB Positron">
+                                <div class="layer-name">Light (Clean)</div>
+                            </label>
+
+                            <!-- CartoDB Dark Matter -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer') === 'cartodb_dark') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="cartodb_dark" <?php checked(get_option('osm_map_layer'), 'cartodb_dark'); ?>>
+                                <img src="https://a.basemaps.cartocdn.com/dark_all/12/2073/1409.png" alt="CartoDB Dark">
+                                <div class="layer-name">Dark Mode</div>
+                            </label>
+
+                            <!-- Humanitarian -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer') === 'humanitarian') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="humanitarian" <?php checked(get_option('osm_map_layer'), 'humanitarian'); ?>>
+                                <img src="https://a.tile.openstreetmap.fr/hot/12/2073/1409.png" alt="Humanitarian">
+                                <div class="layer-name">Humanitarian</div>
+                            </label>
+                        </div>
+                        <p class="submit">
+                            <button type="submit" class="button-primary">Save Changes</button>
                         </p>
                     </form>
                 </div>

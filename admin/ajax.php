@@ -284,6 +284,10 @@ function osm_ajax_save_settings() {
     if (isset($_POST['osm_default_cta_url'])) {
         update_option('osm_default_cta_url', sanitize_text_field($_POST['osm_default_cta_url']));
     }
+
+    if (isset($_POST['osm_popup_button_text'])) {
+        update_option('osm_popup_button_text', sanitize_text_field($_POST['osm_popup_button_text']));
+    }
     
     if (isset($_POST['osm_disable_cta_button'])) {
         update_option('osm_disable_cta_button', 'yes');
@@ -306,6 +310,11 @@ function osm_ajax_save_settings() {
     }
     if (isset($_POST['osm_bubble_color'])) {
         update_option('osm_bubble_color', sanitize_hex_color($_POST['osm_bubble_color']));
+    }
+
+    // Save Map Layer
+    if (isset($_POST['osm_map_layer'])) {
+        update_option('osm_map_layer', sanitize_text_field($_POST['osm_map_layer']));
     }
 
     wp_send_json_success();
