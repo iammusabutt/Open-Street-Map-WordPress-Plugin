@@ -340,6 +340,48 @@ function osm_settings_page_html() {
                                 <img src="https://a.tile.openstreetmap.fr/hot/12/2073/1409.png" alt="Humanitarian">
                                 <div class="layer-name">Humanitarian</div>
                             </label>
+
+                            <!-- CyclOSM -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer') === 'cyclosm') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="cyclosm" <?php checked(get_option('osm_map_layer'), 'cyclosm'); ?>>
+                                <img src="https://a.tile-cyclosm.openstreetmap.fr/cyclosm/12/2073/1409.png" alt="CyclOSM">
+                                <div class="layer-name">CyclOSM (Bicycle)</div>
+                            </label>
+
+                            <!-- OpenTopoMap -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer') === 'opentopomap') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="opentopomap" <?php checked(get_option('osm_map_layer'), 'opentopomap'); ?>>
+                                <img src="https://a.tile.opentopomap.org/12/2073/1409.png" alt="OpenTopoMap">
+                                <div class="layer-name">OpenTopoMap</div>
+                            </label>
+
+                            <!-- CartoDB Voyager -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer') === 'cartodb_voyager') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="cartodb_voyager" <?php checked(get_option('osm_map_layer'), 'cartodb_voyager'); ?>>
+                                <img src="https://a.basemaps.cartocdn.com/rastertiles/voyager/12/2073/1409.png" alt="Voyager">
+                                <div class="layer-name">Voyager (Clean)</div>
+                            </label>
+
+                            <!-- Public Transport (ÖPNV Karte) -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer') === 'public_transport') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="public_transport" <?php checked(get_option('osm_map_layer'), 'public_transport'); ?>>
+                                <img src="https://tile.memomaps.de/tilegen/12/2073/1409.png" alt="Public Transport">
+                                <div class="layer-name">Public Transport</div>
+                            </label>
+
+                            <!-- Esri World Imagery (Satellite) -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer') === 'esri_world_imagery') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="esri_world_imagery" <?php checked(get_option('osm_map_layer'), 'esri_world_imagery'); ?>>
+                                <img src="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/12/1409/2073" alt="Satellite">
+                                <div class="layer-name">Satellite (Esri)</div>
+                            </label>
+
+                            <!-- Esri World Street Map -->
+                            <label class="layer-option <?php echo (get_option('osm_map_layer') === 'esri_world_street_map') ? 'selected' : ''; ?>">
+                                <input type="radio" name="osm_map_layer" value="esri_world_street_map" <?php checked(get_option('osm_map_layer'), 'esri_world_street_map'); ?>>
+                                <img src="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/12/1409/2073" alt="Esri Street">
+                                <div class="layer-name">Esri Street Map</div>
+                            </label>
                         </div>
                         <p class="submit">
                             <button type="submit" class="button-primary">Save Changes</button>

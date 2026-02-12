@@ -139,13 +139,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     tileUrl = "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
   } else if (layer === 'humanitarian') {
     tileUrl = "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png";
+  } else if (layer === 'cyclosm') {
+    tileUrl = "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png";
+  } else if (layer === 'opentopomap') {
+    tileUrl = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
+  } else if (layer === 'cartodb_voyager') {
+    tileUrl = "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png";
+  } else if (layer === 'public_transport') {
+    tileUrl = "https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png";
+  } else if (layer === 'esri_world_imagery') {
+    tileUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+  } else if (layer === 'esri_world_street_map') {
+    tileUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
   }
 
   // Attribution
   let attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
   if (layer.startsWith('cartodb')) {
     attribution += ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  } else if (layer === 'opentopomap') {
+    attribution += ' &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
+  } else if (layer === 'cyclosm') {
+    attribution += ' &copy; <a href="https://www.cyclosm.org">CyclOSM</a>';
+  } else if (layer === 'public_transport') {
+    attribution += ' &copy; <a href="https://memomaps.de/">Memomaps</a>';
+  } else if (layer.startsWith('esri')) {
+    attribution += ' &copy; <a href="https://www.esri.com/">Esri</a>';
   }
+
+
 
   map = new maplibregl.Map({
     container: "map",
