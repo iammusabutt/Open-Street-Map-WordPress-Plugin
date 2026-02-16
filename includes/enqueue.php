@@ -52,7 +52,11 @@ function osm_enqueue_admin_scripts($hook) {
     }
     wp_enqueue_style( 'osm-admin-style', plugin_dir_url( __FILE__ ) . '../css/admin-style.css' );
     wp_enqueue_style( 'wp-color-picker' );
-    wp_enqueue_script( 'osm-admin-script', plugin_dir_url( __FILE__ ) . '../admin/admin.js', array( 'jquery', 'wp-color-picker' ), false, true );
+    
+    $admin_js_path = plugin_dir_path( __FILE__ ) . '../admin/admin.js';
+    $admin_js_ver = file_exists( $admin_js_path ) ? filemtime( $admin_js_path ) : '1.0';
+    
+    wp_enqueue_script( 'osm-admin-script', plugin_dir_url( __FILE__ ) . '../admin/admin.js', array( 'jquery', 'wp-color-picker' ), $admin_js_ver, true );
     wp_localize_script( 'osm-admin-script', 'osm_admin_vars', array(
         'nonce' => wp_create_nonce( 'osm_ajax_nonce' )
     ) );

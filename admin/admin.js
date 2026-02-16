@@ -226,6 +226,109 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
 
+
+
+    // Remove Duplicates Helper
+    function setupRemoveDuplicates(btnId, type) {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                const typeLabel = type === 'city' ? 'cities' : 'signs';
+                const dryRunEl = document.getElementById('osm-dry-run');
+                const isDryRun = dryRunEl ? dryRunEl.checked : false;
+                const actionText = isDryRun ? 'simulate removing' : 'remove';
+
+                if (!confirm(`Are you sure you want to ${actionText} duplicate ${typeLabel}? ${isDryRun ? '' : 'This action cannot be undone.'}`)) {
+                    return;
+                }
+
+                const logContainer = document.getElementById('osm-log-container');
+                const clearLogBtn = document.getElementById('osm-clear-log-btn');
+                const spinner = document.getElementById('osm-duplicates-spinner');
+
+                // Reset UI
+                if (logContainer) {
+                    logContainer.style.display = 'block';
+                    logContainer.innerHTML = ''; // Start fresh
+                    clearLogBtn.style.display = 'inline-block';
+                    // Add timestamp
+                    const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+                    logContainer.innerHTML += `<div>${now} Starting process for ${type}...</div>`;
+                }
+
+                // Disable buttons
+                const allBtns = document.querySelectorAll('#osm-remove-cities-btn, #osm-remove-signs-btn');
+                allBtns.forEach(b => b.disabled = true);
+                spinner.style.visibility = 'visible';
+
+                function processBatch() {
+                    const formData = new FormData();
+                    formData.append('action', 'osm_remove_duplicates');
+                    formData.append('nonce', ajaxNonce);
+                    formData.append('type', type);
+                    formData.append('dry_run', isDryRun ? '1' : '0');
+
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Append logs
+                                if (data.data.logs && logContainer) {
+                                    const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+                                    data.data.logs.forEach(msg => {
+                                        logContainer.innerHTML += `<div>${now} ${msg}</div>`;
+                                    });
+                                    logContainer.scrollTop = logContainer.scrollHeight;
+                                }
+
+                                if (data.data.status === 'continue') {
+                                    // Recursive call for next batch
+                                    processBatch();
+                                } else {
+                                    // Complete
+                                    spinner.style.visibility = 'hidden';
+                                    allBtns.forEach(b => b.disabled = false);
+                                    logContainer.innerHTML += `<div>Process complete.</div>`;
+                                    logContainer.scrollTop = logContainer.scrollHeight;
+                                }
+                            } else {
+                                // Error
+                                spinner.style.visibility = 'hidden';
+                                allBtns.forEach(b => b.disabled = false);
+                                if (logContainer) logContainer.innerHTML += `<div style="color:red">Error: ${data.data}</div>`;
+                                showToast('Error removing duplicates', 'error');
+                            }
+                        })
+                        .catch(error => {
+                            spinner.style.visibility = 'hidden';
+                            allBtns.forEach(b => b.disabled = false);
+                            console.error('Fetch error:', error);
+                            if (logContainer) logContainer.innerHTML += `<div style="color:red">Network Error: ${error}</div>`;
+                        });
+                }
+
+                // Start the process
+                processBatch();
+            });
+        }
+    }
+
+    setupRemoveDuplicates('osm-remove-cities-btn', 'city');
+    setupRemoveDuplicates('osm-remove-signs-btn', 'sign');
+
+    // Clear log button
+    const clearLogBtn = document.getElementById('osm-clear-log-btn');
+    if (clearLogBtn) {
+        clearLogBtn.addEventListener('click', function () {
+            const logContainer = document.getElementById('osm-log-container');
+            if (logContainer) logContainer.innerHTML = '';
+        });
+    }
+
     // Toaster notification function
     function showToast(message, type = 'success') {
         const container = document.getElementById('osm-toaster-container');

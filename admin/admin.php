@@ -138,17 +138,25 @@ function osm_settings_page_html() {
                         </a>
                     </li>
                     <li>
-                        <a href="#import" class="nav-tab">
-                            <span class="dashicons dashicons-upload"></span>
-                            <span>Import Tool</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="#layers" class="nav-tab">
                             <span class="dashicons dashicons-images-alt2"></span>
                             <span>Map Layers</span>
                         </a>
                     </li>
+                    <li>
+                        <a href="#import" class="nav-tab">
+                            <span class="dashicons dashicons-upload"></span>
+                            <span>Import Tool</span>
+                        </a>
+                    </li>
+                    <?php if (get_option('osm_developer_mode') === 'yes') : ?>
+                    <li>
+                        <a href="#developer" class="nav-tab">
+                            <span class="dashicons dashicons-hammer"></span>
+                            <span>Developer</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
                 </ul>
             </div>
                 <div id="settings" class="osm-admin-tab-pane active">
@@ -209,62 +217,34 @@ function osm_settings_page_html() {
                                 </td>
                             </tr>
                         </table>
+
+                        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+
+                        <!-- Developer Settings -->
+                        <h3>Developer Settings</h3>
+                        <table class="form-table">
+                            <tr valign="top">
+                                <th scope="row">Enable Developer Mode</th>
+                                <td>
+                                    <div class="switchery-wraper">
+                                        <span>No</span>
+                                        <label class="switchery">
+                                            <input type="checkbox" id="osm_developer_mode" name="osm_developer_mode" value="yes" <?php checked( get_option('osm_developer_mode'), 'yes' ); ?>>
+                                            <span class="switchery-slider round"></span>
+                                        </label>
+                                        <span>Yes</span>
+                                    </div>
+                                    <p class="description">Enable to see the Developer tab and advanced options.</p>
+                                </td>
+                            </tr>
+                        </table>
                         
                         <p class="submit">
                             <button type="submit" class="button-primary">Save Changes</button>
                         </p>
                     </form>
                 </div>
-                <div id="import" class="osm-admin-tab-pane">
-                    <div id="osm-import-panel">
-                        <h2 class="osm-tab-title">Import Tool</h2>
 
-                        <div class="import-section">
-                            <h3>Import Cities</h3>
-                            <p>CSV column order: <strong>Name, Latitude, Longitude, Count, Venue</strong></p>
-                            <form class="osm-upload-form" method="post" enctype="multipart/form-data" data-import-type="cities">
-                                <input type="hidden" name="import_type" value="cities">
-                                <p>
-                                    <label>CSV File:</label>
-                                    <div class="custom-file-upload-wrapper">
-                                        <label for="csv_file_cities" class="custom-file-upload-label">Choose CSV File</label>
-                                        <input type="file" name="csv_file" id="csv_file_cities" class="custom-file-upload-input" accept=".csv">
-                                        <span class="custom-file-upload-filename">No file chosen</span>
-                                    </div>
-                                </p>
-                                <p class="submit">
-                                    <button type="submit" class="button-primary osm-upload-button" disabled>Upload Cities CSV</button>
-                                    <span class="spinner"></span>
-                                </p>
-                            </form>
-                            <div class="osm-uploaded-files-list"></div>
-                        </div>
-
-                        <hr>
-
-                        <div class="import-section">
-                            <h3>Import Signs</h3>
-                            <p>CSV column order: <strong>Title, Latitude, Longitude, Venue, City Name, Image URL</strong></p>
-                            <form class="osm-upload-form" method="post" enctype="multipart/form-data" data-import-type="signs">
-                                <input type="hidden" name="import_type" value="signs">
-                                <p>
-                                    <label>CSV File:</label>
-                                    <div class="custom-file-upload-wrapper">
-                                        <label for="csv_file_signs" class="custom-file-upload-label">Choose CSV File</label>
-                                        <input type="file" name="csv_file" id="csv_file_signs" class="custom-file-upload-input" accept=".csv">
-                                        <span class="custom-file-upload-filename">No file chosen</span>
-                                    </div>
-                                </p>
-                                <p class="submit">
-                                    <button type="submit" class="button-primary osm-upload-button" disabled>Upload Signs CSV</button>
-                                    <span class="spinner"></span>
-                                </p>
-                            </form>
-                            <div class="osm-uploaded-files-list"></div>
-                        </div>
-
-                    </div>
-                </div>
                 <div id="colors" class="osm-admin-tab-pane">
                     <h2 class="osm-tab-title">Color Settings</h2>
                     <form id="osm-settings-form-colors">
@@ -388,6 +368,84 @@ function osm_settings_page_html() {
                         </p>
                     </form>
                 </div>
+                <div id="import" class="osm-admin-tab-pane">
+                    <div id="osm-import-panel">
+                        <h2 class="osm-tab-title">Import Tool</h2>
+
+                        <div class="import-section">
+                            <h3>Import Cities</h3>
+                            <p>CSV column order: <strong>Name, Latitude, Longitude, Count, Venue</strong></p>
+                            <form class="osm-upload-form" method="post" enctype="multipart/form-data" data-import-type="cities">
+                                <input type="hidden" name="import_type" value="cities">
+                                <p>
+                                    <label>CSV File:</label>
+                                    <div class="custom-file-upload-wrapper">
+                                        <label for="csv_file_cities" class="custom-file-upload-label">Choose CSV File</label>
+                                        <input type="file" name="csv_file" id="csv_file_cities" class="custom-file-upload-input" accept=".csv">
+                                        <span class="custom-file-upload-filename">No file chosen</span>
+                                    </div>
+                                </p>
+                                <p class="submit">
+                                    <button type="submit" class="button-primary osm-upload-button" disabled>Upload Cities CSV</button>
+                                    <span class="spinner"></span>
+                                </p>
+                            </form>
+                            <div class="osm-uploaded-files-list"></div>
+                        </div>
+
+                        <hr>
+
+                        <div class="import-section">
+                            <h3>Import Signs</h3>
+                            <p>CSV column order: <strong>Title, Latitude, Longitude, Venue, City Name, Image URL</strong></p>
+                            <form class="osm-upload-form" method="post" enctype="multipart/form-data" data-import-type="signs">
+                                <input type="hidden" name="import_type" value="signs">
+                                <p>
+                                    <label>CSV File:</label>
+                                    <div class="custom-file-upload-wrapper">
+                                        <label for="csv_file_signs" class="custom-file-upload-label">Choose CSV File</label>
+                                        <input type="file" name="csv_file" id="csv_file_signs" class="custom-file-upload-input" accept=".csv">
+                                        <span class="custom-file-upload-filename">No file chosen</span>
+                                    </div>
+                                </p>
+                                <p class="submit">
+                                    <button type="submit" class="button-primary osm-upload-button" disabled>Upload Signs CSV</button>
+                                    <span class="spinner"></span>
+                                </p>
+                            </form>
+                            <div class="osm-uploaded-files-list"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Developer Tab -->
+                <?php if (get_option('osm_developer_mode') === 'yes') : ?>
+                <div id="developer" class="osm-admin-tab-pane">
+                    <h2 class="osm-tab-title">Developer Tools</h2>
+                    <p>Advanced tools for developers.</p>
+                    <div class="import-section">
+                        <h3>Maintenance</h3>
+                        <p>Remove duplicate cities and signs. This will keep the oldest record and delete newer duplicates based on the title.</p>
+                        <p style="color: red; font-weight: bold;">WARNING: Use this tool only if you know what you are doing! This action is irreversible.</p>
+                        <p>
+                            <label>
+                                <input type="checkbox" id="osm-dry-run"> Dry Run (Simulate removal without deleting)
+                            </label>
+                        </p>
+                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                                <button type="button" id="osm-remove-cities-btn" class="button-secondary">Remove Duplicate Cities</button>
+                                <button type="button" id="osm-remove-signs-btn" class="button-secondary">Remove Duplicate Signs</button>
+                            </div>
+                            <div id="osm-log-container" style="background: #f0f0f1; border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; display: none;"></div>
+                            <button type="button" id="osm-clear-log-btn" class="button-link" style="margin-top: 5px; display: none;">Clear Log</button>
+                            <span class="spinner" id="osm-duplicates-spinner"></span>
+                    </div>
+                    <div class="import-section">
+                        <h3>Debug Info</h3>
+                        <p>Plugin Version: 1.0.7</p>
+                        <p>WordPress Version: <?php echo get_bloginfo('version'); ?></p>
+                    </div>
+                </div>
+                <?php endif; ?>
                 <div id="pins" class="osm-admin-tab-pane">
                     <h2 class="osm-tab-title">Manage Pins</h2>
                     <div id="osm-pins-panel">

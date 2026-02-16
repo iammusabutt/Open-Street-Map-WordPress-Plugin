@@ -137,6 +137,14 @@ function osm_ajax_process_batch() {
                 error_log('OSM Import: Skipped empty city name at row ' . ($processed_rows + $current_batch + 1));
                 continue;
             }
+            $existing_city = get_page_by_title($post_title, OBJECT, 'city');
+            if ($existing_city) {
+                 $errors[] = "Skipped row " . ($processed_rows + $current_batch + 1) . ": duplicate city '" . $post_title . "'.";
+                 error_log('OSM Import: Skipped duplicate city at row ' . ($processed_rows + $current_batch + 1));
+                 $current_batch++;
+                 continue;
+            }
+
             $new_post = ['post_title' => $post_title, 'post_type' => 'city', 'post_status' => 'publish'];
             error_log('OSM Import: Creating city post with title: ' . $post_title . ' and post_type: city');
             $post_id = wp_insert_post($new_post);
@@ -158,6 +166,14 @@ function osm_ajax_process_batch() {
                 error_log('OSM Import: Skipped empty sign title at row ' . ($processed_rows + $current_batch + 1));
                 continue;
             }
+            $existing_sign = get_page_by_title($post_title, OBJECT, 'sign');
+            if ($existing_sign) {
+                 $errors[] = "Skipped row " . ($processed_rows + $current_batch + 1) . ": duplicate sign '" . $post_title . "'.";
+                 error_log('OSM Import: Skipped duplicate sign at row ' . ($processed_rows + $current_batch + 1));
+                 $current_batch++;
+                 continue;
+            }
+
             $new_post = ['post_title' => $post_title, 'post_type' => 'sign', 'post_status' => 'publish'];
             error_log('OSM Import: Creating sign post with title: ' . $post_title . ' and post_type: sign');
             $post_id = wp_insert_post($new_post);
@@ -298,6 +314,12 @@ function osm_ajax_save_settings() {
         } else {
             update_option('osm_disable_cta_button', 'no');
         }
+
+        if (isset($_POST['osm_developer_mode'])) {
+            update_option('osm_developer_mode', 'yes');
+        } else {
+            update_option('osm_developer_mode', 'no');
+        }
     }
 
     // Save Color Settings
@@ -350,3 +372,73 @@ function osm_ajax_delete_csv() {
     }
 }
 add_action('wp_ajax_osm_delete_csv', 'osm_ajax_delete_csv');
+
+function osm_ajax_remove_duplicates() {
+    check_ajax_referer('osm_ajax_nonce', 'nonce');
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error('You do not have permission to perform this action.');
+    }
+
+    global $wpdb;
+    $type = isset($_POST['type']) ? sanitize_text_field($_POST['type']) : 'all';
+    $dry_run = isset($_POST['dry_run']) && $_POST['dry_run'] === '1';
+    
+    $logs = [];
+    $found_duplicates = false;
+
+    // Helper function to process duplicates
+    $process_duplicates = function($post_type) use ($wpdb, $dry_run, &$logs, &$found_duplicates) {
+        // Get ONE duplicate group (LIMIT 1)
+        $duplicate_group = $wpdb->get_row($wpdb->prepare("
+            SELECT post_title, MIN(ID) as min_id, COUNT(*) as count
+            FROM {$wpdb->posts}
+            WHERE post_type = %s AND post_status = 'publish'
+            GROUP BY post_title
+            HAVING COUNT(*) > 1
+            LIMIT 1
+        ", $post_type));
+
+        if ($duplicate_group) {
+            $found_duplicates = true;
+            $logs[] = "Processing duplicate group: '{$duplicate_group->post_title}' (Found {$duplicate_group->count} records)";
+
+            $ids_to_delete = $wpdb->get_col($wpdb->prepare("
+                SELECT ID FROM {$wpdb->posts}
+                WHERE post_type = %s AND post_status = 'publish'
+                AND post_title = %s AND ID != %d
+            ", $post_type, $duplicate_group->post_title, $duplicate_group->min_id));
+
+            foreach ($ids_to_delete as $id) {
+                if ($dry_run) {
+                    $logs[] = "[Dry Run] Would delete ID: $id";
+                } else {
+                    $start_time = microtime(true);
+                    wp_delete_post($id, true);
+                    $end_time = microtime(true);
+                    $duration = round($end_time - $start_time, 4);
+                    $logs[] = "Deleted ID: $id ({$duration} sec)";
+                }
+            }
+        }
+    };
+
+    if ($type === 'city') {
+        $process_duplicates('city');
+    } elseif ($type === 'sign') {
+        $process_duplicates('sign');
+    }
+
+    if ($found_duplicates) {
+        wp_send_json_success(array(
+            'status' => 'continue',
+            'logs' => $logs
+        ));
+    } else {
+        wp_send_json_success(array(
+            'status' => 'complete',
+            'logs' => ["No more duplicates found."]
+        ));
+    }
+}
+add_action('wp_ajax_osm_remove_duplicates', 'osm_ajax_remove_duplicates');
