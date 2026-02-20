@@ -1,0 +1,14 @@
+--- Debugging Post 27841 ---
+ID: 27841
+Title: AL-178056
+Type: sign
+_sign_city_id: '23602'
+Linked City: Albertville (ID: 23602)
+
+--- Searching for 'UT-02303' ---
+Found Post by Title SQL:
+ID: 24961
+Title: UT-02303
+_sign_city_id: '24738'
+Linked City: South Salt Lake (ID: 24738)
+----------------

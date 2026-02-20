@@ -126,6 +126,12 @@ function osm_settings_page_html() {
                         </a>
                     </li>
                     <li>
+                        <a href="#shortcodes" class="nav-tab">
+                            <span class="dashicons dashicons-editor-code"></span>
+                            <span>Shortcodes</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="#pins" class="nav-tab">
                             <span class="dashicons dashicons-location"></span>
                             <span>Pins</span>
@@ -135,6 +141,12 @@ function osm_settings_page_html() {
                         <a href="#colors" class="nav-tab">
                             <span class="dashicons dashicons-art"></span>
                             <span>Colors</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#mapbox" class="nav-tab">
+                            <span class="dashicons dashicons-location-alt"></span>
+                            <span>Map Box</span>
                         </a>
                     </li>
                     <li>
@@ -183,48 +195,13 @@ function osm_settings_page_html() {
                             </tr>
                         </table>
 
-                        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
 
-                        <!-- Map Box Settings -->
-                        <h3>Map Box Settings</h3>
-                        <table class="form-table">
-                            <tr valign="top">
-                                <th scope="row">Default CTA URL</th>
-                                <td>
-                                    <input type="text" name="osm_default_cta_url" class="regular-text" value="<?php echo esc_attr( get_option('osm_default_cta_url', '') ); ?>" placeholder="https://example.com" />
-                                    <p class="description">This URL will be used for buttons on the map popups by default.</p>
-                                </td>
-                            </tr>
-                            <tr valign="top">
-                                <th scope="row">Popup Button Text</th>
-                                <td>
-                                    <input type="text" name="osm_popup_button_text" class="regular-text" value="<?php echo esc_attr( get_option('osm_popup_button_text', '') ); ?>" placeholder="Log in to get started" />
-                                    <p class="description">Text to display on the popup button. Leave empty for default ("Log in to get started").</p>
-                                </td>
-                            </tr>
-                            <tr valign="top">
-                                <th scope="row">Disable Popup Button</th>
-                                <td>
-                                    <div class="switchery-wraper">
-                                        <span>No</span>
-                                        <label class="switchery">
-                                            <input type="checkbox" id="osm_disable_cta_button" name="osm_disable_cta_button" value="yes" <?php checked( get_option('osm_disable_cta_button'), 'yes' ); ?>>
-                                            <span class="switchery-slider round"></span>
-                                        </label>
-                                        <span>Yes</span>
-                                    </div>
-                                    <p class="description">If switched to "Yes," the CTA button will be hidden by default on all popups unless overridden by a specific sign.</p>
-                                </td>
-                            </tr>
-                        </table>
-
-                        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
 
                         <!-- Developer Settings -->
                         <h3>Developer Settings</h3>
                         <table class="form-table">
                             <tr valign="top">
-                                <th scope="row">Enable Developer Mode</th>
+                                <th scope="row">Enable Developer Options</th>
                                 <td>
                                     <div class="switchery-wraper">
                                         <span>No</span>
@@ -237,12 +214,47 @@ function osm_settings_page_html() {
                                     <p class="description">Enable to see the Developer tab and advanced options.</p>
                                 </td>
                             </tr>
+                            <tr valign="top">
+                                <th scope="row">Disable Asset Caching</th>
+                                <td>
+                                    <div class="switchery-wraper">
+                                        <span>No</span>
+                                        <label class="switchery">
+                                            <input type="checkbox" id="osm_disable_asset_cache" name="osm_disable_asset_cache" value="yes" <?php checked( get_option('osm_disable_asset_cache'), 'yes' ); ?>>
+                                            <span class="switchery-slider round"></span>
+                                        </label>
+                                        <span>Yes</span>
+                                    </div>
+                                    <p class="description">If enabled, a timestamp will be appended to script and style URLs to prevent browser caching. Useful for development.</p>
+                                </td>
+                            </tr>
                         </table>
                         
                         <p class="submit">
                             <button type="submit" class="button-primary">Save Changes</button>
                         </p>
                     </form>
+                </div>
+
+                <div id="shortcodes" class="osm-admin-tab-pane">
+                    <h2 class="osm-tab-title">Shortcodes</h2>
+                    <p class="description" style="margin-bottom: 20px; font-size: 14px;">Use the following shortcodes to display the map on your site's posts, pages, or widgets.</p>
+                    <table class="form-table">
+                        <tr valign="top">
+                            <th scope="row">
+                                <label style="font-weight: 600;">Main Map Shortcode</label>
+                            </th>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="text" readonly value="[open_street_map]" style="font-family: monospace; font-size: 14px; padding: 5px 10px; background: #f0f0f1; border: 1px solid #ddd; width: 250px; color: #d63638;" id="osm_main_shortcode_input">
+                                    <button type="button" class="button button-secondary" onclick="navigator.clipboard.writeText('[open_street_map]'); var btn = this; var oldHtml = btn.innerHTML; btn.innerHTML = '<span class=\'dashicons dashicons-yes\' style=\'margin-top: 4px;\'></span> Copied!'; setTimeout(function(){ btn.innerHTML = oldHtml; }, 2000);" title="Copy to clipboard" style="display: flex; align-items: center; gap: 4px; padding: 0 10px;">
+                                        <span class="dashicons dashicons-clipboard" style="margin-top: 4px;"></span> Copy
+                                    </button>
+                                </div>
+                                <p class="description">Copy and paste this shortcode onto any page where you want the map to appear.</p>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
 
                 <div id="colors" class="osm-admin-tab-pane">
@@ -283,6 +295,74 @@ function osm_settings_page_html() {
                         </table>
                         <p class="submit">
                             <button type="submit" class="button-primary">Save Colors</button>
+                        </p>
+                    </form>
+                </div>
+
+                <div id="mapbox" class="osm-admin-tab-pane">
+                    <h2 class="osm-tab-title">Map Box Settings</h2>
+                    <form id="osm-settings-form-mapbox">
+                        <input type="hidden" name="osm_settings_group" value="mapbox">
+                        <table class="form-table">
+                            <tr valign="top">
+                                <th scope="row">Default CTA URL</th>
+                                <td>
+                                    <input type="text" name="osm_default_cta_url" class="regular-text" value="<?php echo esc_attr( get_option('osm_default_cta_url', '') ); ?>" placeholder="https://example.com" />
+                                    <p class="description">This URL will be used for buttons on the map popups by default.</p>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row">Popup Button Text</th>
+                                <td>
+                                    <input type="text" name="osm_popup_button_text" class="regular-text" value="<?php echo esc_attr( get_option('osm_popup_button_text', '') ); ?>" placeholder="Log in to get started" />
+                                    <p class="description">Text to display on the popup button. Leave empty for default ("Log in to get started").</p>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row">Disable Popup Button</th>
+                                <td>
+                                    <div class="switchery-wraper">
+                                        <span>No</span>
+                                        <label class="switchery">
+                                            <input type="checkbox" id="osm_disable_cta_button" name="osm_disable_cta_button" value="yes" <?php checked( get_option('osm_disable_cta_button'), 'yes' ); ?>>
+                                            <span class="switchery-slider round"></span>
+                                        </label>
+                                        <span>Yes</span>
+                                    </div>
+                                    <p class="description">If switched to "Yes," the CTA button will be hidden by default on all popups unless overridden by a specific sign.</p>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row">Enable Image Lightbox</th>
+                                <td>
+                                    <div class="switchery-wraper">
+                                        <span>No</span>
+                                        <label class="switchery">
+                                            <input type="checkbox" id="osm_enable_image_lightbox" name="osm_enable_image_lightbox" value="yes" <?php checked( get_option('osm_enable_image_lightbox', 'yes'), 'yes' ); ?>>
+                                            <span class="switchery-slider round"></span>
+                                        </label>
+                                        <span>Yes</span>
+                                    </div>
+                                    <p class="description">If switched to "Yes," clicking on the image in the map popup will open it in a lightbox.</p>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row">Enable Title Permalink</th>
+                                <td>
+                                    <div class="switchery-wraper">
+                                        <span>No</span>
+                                        <label class="switchery">
+                                            <input type="checkbox" id="osm_enable_title_link" name="osm_enable_title_link" value="yes" <?php checked( get_option('osm_enable_title_link', 'yes'), 'yes' ); ?>>
+                                            <span class="switchery-slider round"></span>
+                                        </label>
+                                        <span>Yes</span>
+                                    </div>
+                                    <p class="description">If switched to "Yes," the title in the map popup will be a clickable link to the City or Sign page.</p>
+                                </td>
+                            </tr>
+                        </table>
+                        <p class="submit">
+                            <button type="submit" class="button-primary">Save Map Box Settings</button>
                         </p>
                     </form>
                 </div>
@@ -422,6 +502,23 @@ function osm_settings_page_html() {
                 <div id="developer" class="osm-admin-tab-pane">
                     <h2 class="osm-tab-title">Developer Tools</h2>
                     <p>Advanced tools for developers.</p>
+                    
+                    <div class="import-section">
+                        <h3>Bulk Actions</h3>
+                        <p>Perform bulk operations on your data.</p>
+                        <div style="margin-bottom: 10px;">
+                            <button type="button" id="osm-delete-all-signs-btn" class="button button-secondary" style="color: #b32d2e; border-color: #b32d2e;">Delete All Signs</button>
+                            <span class="spinner" id="osm-delete-all-signs-spinner"></span>
+                            <p class="description">Permanently delete ALL Sign posts. This cannot be undone.</p>
+                        </div>
+                        <div>
+                            <button type="button" id="osm-delete-orphaned-cities-btn" class="button button-secondary" style="color: #b32d2e; border-color: #b32d2e;">Delete Orphaned Cities</button>
+                            <span class="spinner" id="osm-delete-orphaned-cities-spinner"></span>
+                            <p class="description">Delete City posts that have NO Signs assigned to them.</p>
+                        </div>
+                        <div id="osm-bulk-action-log" style="margin-top: 10px; max-height: 200px; overflow-y: auto; background: #fff; border: 1px solid #ccd0d4; padding: 10px; display: none;"></div>
+                    </div>
+
                     <div class="import-section">
                         <h3>Maintenance</h3>
                         <p>Remove duplicate cities and signs. This will keep the oldest record and delete newer duplicates based on the title.</p>
