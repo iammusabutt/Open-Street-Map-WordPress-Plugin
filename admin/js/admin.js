@@ -1,4 +1,99 @@
 document.addEventListener('DOMContentLoaded', function () {
+    console.log('OSM JS Loaded - Debug Version ' + new Date().toISOString());
+
+    // Bulk Delete Action Helper (Delete All Signs / Delete Orphaned Cities)
+    const ajaxNonce = (window.osm_admin_vars && window.osm_admin_vars.nonce) ? window.osm_admin_vars.nonce : '';
+
+    function setupBulkDeleteAction(btnId, type, spinnerId) {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+
+                const actionText = type === 'all_signs' ? 'DELETE ALL SIGNS' : 'DELETE ORPHANED CITIES';
+
+                if (!confirm(`WARNING: Are you sure you want to ${actionText}? This action cannot be undone.`)) {
+                    return;
+                }
+
+                if (!confirm(`Double check: Really ${actionText}?`)) {
+                    return;
+                }
+
+                const logContainer = document.getElementById('osm-bulk-action-log');
+                const spinner = document.getElementById(spinnerId);
+
+                // Reset UI
+                if (logContainer) {
+                    logContainer.style.display = 'block';
+                    logContainer.innerHTML = ''; // Start fresh
+                    // Add timestamp
+                    const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+                    logContainer.innerHTML += `<div>${now} Starting ${actionText}...</div>`;
+                }
+
+                // Disable buttons
+                btn.disabled = true;
+                if (spinner) spinner.style.visibility = 'visible';
+
+                function processBatch() {
+                    const formData = new FormData();
+                    formData.append('action', 'osm_bulk_delete');
+                    formData.append('nonce', ajaxNonce);
+                    formData.append('type', type);
+
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Append logs
+                                if (data.data.logs && logContainer) {
+                                    const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+                                    data.data.logs.forEach(msg => {
+                                        logContainer.innerHTML += `<div>${now} ${msg}</div>`;
+                                    });
+                                    logContainer.scrollTop = logContainer.scrollHeight;
+                                }
+
+                                if (data.data.status === 'continue') {
+                                    // Recursive call for next batch
+                                    processBatch();
+                                } else {
+                                    // Complete
+                                    if (spinner) spinner.style.visibility = 'hidden';
+                                    btn.disabled = false;
+                                    if (logContainer) logContainer.innerHTML += `<div>Process complete.</div>`;
+                                    logContainer.scrollTop = logContainer.scrollHeight;
+                                    showToast('Bulk action complete.', 'success');
+                                }
+                            } else {
+                                // Error
+                                if (spinner) spinner.style.visibility = 'hidden';
+                                btn.disabled = false;
+                                if (logContainer) logContainer.innerHTML += `<div style="color:red">Error: ${data.data}</div>`;
+                                showToast('Error during bulk action', 'error');
+                            }
+                        })
+                        .catch(error => {
+                            if (spinner) spinner.style.visibility = 'hidden';
+                            btn.disabled = false;
+                            console.error('Fetch error:', error);
+                            if (logContainer) logContainer.innerHTML += `<div style="color:red">Network Error: ${error}</div>`;
+                        });
+                }
+
+                // Start the process
+                processBatch();
+            });
+        }
+    }
+
+    setupBulkDeleteAction('osm-delete-all-signs-btn', 'all_signs', 'osm-delete-all-signs-spinner');
+    setupBulkDeleteAction('osm-delete-orphaned-cities-btn', 'orphaned_cities', 'osm-delete-orphaned-cities-spinner');
+
     // Tab switching
     const tabs = document.querySelectorAll('.osm-admin-tabs a');
     const panes = document.querySelectorAll('.osm-admin-tab-pane');
@@ -44,9 +139,25 @@ document.addEventListener('DOMContentLoaded', function () {
     setupCustomFileInput('csv_file_signs');
     setupCustomFileInput('pin_file');
 
+    // Modern Range Slider Input logic
+    const rangeSliderWrappers = document.querySelectorAll('.osm-range-slider-wrapper');
+    if (rangeSliderWrappers.length > 0) {
+        rangeSliderWrappers.forEach(wrapper => {
+            const slider = wrapper.querySelector('.osm-range-slider');
+            const display = wrapper.querySelector('.osm-range-value-display');
+            const hiddenInput = wrapper.querySelector('input[type="hidden"]');
+
+            if (slider && display && hiddenInput) {
+                slider.addEventListener('input', function () {
+                    display.textContent = this.value;
+                    hiddenInput.value = this.value;
+                });
+            }
+        });
+    }
 
     // CSV import script
-    const ajaxNonce = (window.osm_admin_vars && window.osm_admin_vars.nonce) ? window.osm_admin_vars.nonce : '';
+    // const ajaxNonce is already defined at the top
 
     const uploadForms = document.querySelectorAll('.osm-upload-form');
 
@@ -329,6 +440,70 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Bubble Sync
+    const bubbleSyncBtn = document.getElementById('osm-bubble-sync-btn');
+    if (bubbleSyncBtn) {
+        bubbleSyncBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            if (!confirm('Are you sure you want to run Bubble Sync? This will update the display count for all cities based on their currently assigned signs.')) {
+                return;
+            }
+
+            const logContainer = document.getElementById('osm-bubble-sync-log');
+            const spinner = document.getElementById('osm-bubble-sync-spinner');
+
+            if (logContainer) {
+                logContainer.style.display = 'block';
+                logContainer.innerHTML = '';
+                const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+                logContainer.innerHTML += `<div>${now} Starting Bubble Sync...</div>`;
+            }
+
+            bubbleSyncBtn.disabled = true;
+            if (spinner) spinner.style.visibility = 'visible';
+
+            const formData = new FormData();
+            formData.append('action', 'osm_bubble_sync');
+            formData.append('nonce', ajaxNonce);
+
+            fetch(ajaxurl, {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (spinner) spinner.style.visibility = 'hidden';
+                    bubbleSyncBtn.disabled = false;
+
+                    if (data.success) {
+                        if (logContainer) {
+                            const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+                            logContainer.innerHTML += `<div>${now} ${data.data.message}</div>`;
+                            logContainer.scrollTop = logContainer.scrollHeight;
+                        }
+                        if (typeof showToast === 'function') {
+                            showToast('Bubble sync complete.', 'success');
+                        }
+                    } else {
+                        if (logContainer) logContainer.innerHTML += `<div style="color:red">Error: ${data.data}</div>`;
+                        if (typeof showToast === 'function') {
+                            showToast('Error during bubble sync', 'error');
+                        }
+                    }
+                })
+                .catch(error => {
+                    if (spinner) spinner.style.visibility = 'hidden';
+                    bubbleSyncBtn.disabled = false;
+                    console.error('Fetch error:', error);
+                    if (logContainer) logContainer.innerHTML += `<div style="color:red">Network Error: ${error}</div>`;
+                    if (typeof showToast === 'function') {
+                        showToast('Network error during bubble sync', 'error');
+                    }
+                });
+        });
+    }
+
     // Toaster notification function
     function showToast(message, type = 'success') {
         const container = document.getElementById('osm-toaster-container');
@@ -445,6 +620,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Save settings (Map Box)
+    const mapboxForm = document.getElementById('osm-settings-form-mapbox');
+    if (mapboxForm) {
+        mapboxForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            saveSettings(this);
+        });
+    }
+
     // Save settings (Layers)
     const layersForm = document.getElementById('osm-settings-form-layers');
     const layerOptions = document.querySelectorAll('.layer-option');
@@ -496,7 +680,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Color Picker Initialization
     if (typeof jQuery !== 'undefined') {
-        jQuery('.osm-color-field').wpColorPicker();
+        try {
+            if (jQuery.fn.wpColorPicker) {
+                jQuery('.osm-color-field').wpColorPicker();
+            } else {
+                console.warn('wpColorPicker not available in jQuery.fn');
+            }
+        } catch (e) {
+            console.error('Error initializing color picker:', e);
+        }
     }
 
     // Modern Options Panel Tabs (Signs & Cities)
@@ -543,4 +735,6 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     }
+
+
 });

@@ -35,22 +35,44 @@ add_action( 'rest_api_init', function () {
 } );
 
 function get_cities_data() {
-    $args = array(
-        'post_type' => 'city',
-        'posts_per_page' => -1,
-    );
-    $posts = get_posts( $args );
+    global $wpdb;
+
+    $posts = $wpdb->get_results("SELECT ID, post_title FROM {$wpdb->posts} WHERE post_type = 'city' AND post_status = 'publish'");
+
+    $meta_keys = "'_city_lng', '_city_lat', '_city_count', '_city_venue', '_thumbnail_id'";
+    $raw_meta = $wpdb->get_results("
+        SELECT post_id, meta_key, meta_value 
+        FROM {$wpdb->postmeta} 
+        WHERE post_id IN (SELECT ID FROM {$wpdb->posts} WHERE post_type = 'city' AND post_status = 'publish')
+        AND meta_key IN ($meta_keys)
+    ");
+
+    $meta_map = array();
+    foreach ($raw_meta as $row) {
+        $meta_map[$row->post_id][$row->meta_key] = $row->meta_value;
+    }
+
     $data = array();
-    foreach ( $posts as $post ) {
+    foreach ($posts as $post) {
+        $post_id = $post->ID;
+        $m = isset($meta_map[$post_id]) ? $meta_map[$post_id] : array();
+        
+        $thumb_id = isset($m['_thumbnail_id']) ? $m['_thumbnail_id'] : '';
+        $featured_image_url = '';
+        if ($thumb_id) {
+            $featured_image_url = wp_get_attachment_image_url($thumb_id, 'full');
+        }
+
         $data[] = array(
             'name' => $post->post_title,
             'coords' => [
-                (float) get_post_meta( $post->ID, '_city_lng', true ),
-                (float) get_post_meta( $post->ID, '_city_lat', true )
+                (float) (isset($m['_city_lng']) ? $m['_city_lng'] : 0),
+                (float) (isset($m['_city_lat']) ? $m['_city_lat'] : 0)
             ],
-            'count' => (int) get_post_meta( $post->ID, '_city_count', true ),
-            'venue' => get_post_meta( $post->ID, '_city_venue', true ),
-            'img' => get_the_post_thumbnail_url( $post->ID, 'full' ),
+            'count' => (int) (isset($m['_city_count']) ? $m['_city_count'] : 0),
+            'venue' => isset($m['_city_venue']) ? $m['_city_venue'] : '',
+            'img' => $featured_image_url,
+            'link' => get_permalink($post_id),
         );
     }
     return $data;
@@ -66,18 +88,35 @@ add_action( 'rest_api_init', function () {
 } );
 
 function get_signs_data() {
-    $args = array(
-        'post_type' => 'sign',
-        'posts_per_page' => -1,
-    );
-    $posts = get_posts( $args );
-    $data = array();
+    global $wpdb;
     $image_priority = get_option('osm_image_priority', 'featured');
 
-    foreach ( $posts as $post ) {
-        $external_image_url = get_post_meta( $post->ID, '_sign_image_url', true );
-        $featured_image_url = get_the_post_thumbnail_url( $post->ID, 'full' );
-        $image_url = '';
+    $posts = $wpdb->get_results("SELECT ID, post_title FROM {$wpdb->posts} WHERE post_type = 'sign' AND post_status = 'publish'");
+
+    $meta_keys = "'_sign_city', '_sign_venue', '_sign_lat', '_sign_lng', '_sign_image_url', '_thumbnail_id', '_sign_cta_behavior', '_sign_cta_url'";
+    $raw_meta = $wpdb->get_results("
+        SELECT post_id, meta_key, meta_value 
+        FROM {$wpdb->postmeta} 
+        WHERE post_id IN (SELECT ID FROM {$wpdb->posts} WHERE post_type = 'sign' AND post_status = 'publish')
+        AND meta_key IN ($meta_keys)
+    ");
+
+    $meta_map = array();
+    foreach ($raw_meta as $row) {
+        $meta_map[$row->post_id][$row->meta_key] = $row->meta_value;
+    }
+
+    $data = array();
+    foreach ($posts as $post) {
+        $post_id = $post->ID;
+        $m = isset($meta_map[$post_id]) ? $meta_map[$post_id] : array();
+        
+        $external_image_url = isset($m['_sign_image_url']) ? $m['_sign_image_url'] : '';
+        $thumb_id = isset($m['_thumbnail_id']) ? $m['_thumbnail_id'] : '';
+        $featured_image_url = '';
+        if ($thumb_id) {
+            $featured_image_url = wp_get_attachment_image_url($thumb_id, 'full');
+        }
 
         if ($image_priority === 'external') {
             $image_url = !empty($external_image_url) ? $external_image_url : $featured_image_url;
@@ -86,17 +125,18 @@ function get_signs_data() {
         }
 
         $data[] = array(
-            'city' => get_post_meta( $post->ID, '_sign_city', true ),
+            'city' => isset($m['_sign_city']) ? $m['_sign_city'] : '',
             'title' => $post->post_title,
-            'venue' => get_post_meta( $post->ID, '_sign_venue', true ),
+            'venue' => isset($m['_sign_venue']) ? $m['_sign_venue'] : '',
             'coords' => [
-                (float) get_post_meta( $post->ID, '_sign_lat', true ),
-                (float) get_post_meta( $post->ID, '_sign_lng', true )
+                (float) (isset($m['_sign_lat']) ? $m['_sign_lat'] : 0),
+                (float) (isset($m['_sign_lng']) ? $m['_sign_lng'] : 0)
             ],
             'img' => $image_url,
             'href' => '#',
-            'cta_behavior' => get_post_meta( $post->ID, '_sign_cta_behavior', true ) ?: 'default',
-            'cta_url' => get_post_meta( $post->ID, '_sign_cta_url', true )
+            'cta_behavior' => isset($m['_sign_cta_behavior']) && $m['_sign_cta_behavior'] ? $m['_sign_cta_behavior'] : 'default',
+            'cta_url' => isset($m['_sign_cta_url']) ? $m['_sign_cta_url'] : '',
+            'link' => get_permalink($post_id)
         );
     }
     return $data;

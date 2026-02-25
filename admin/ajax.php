@@ -301,24 +301,27 @@ function osm_ajax_save_settings() {
             update_option('osm_image_priority', 'featured');
         }
 
-        if (isset($_POST['osm_default_cta_url'])) {
-            update_option('osm_default_cta_url', sanitize_text_field($_POST['osm_default_cta_url']));
-        }
-        
-        if (isset($_POST['osm_popup_button_text'])) {
-            update_option('osm_popup_button_text', sanitize_text_field($_POST['osm_popup_button_text']));
-        }
-        
-        if (isset($_POST['osm_disable_cta_button'])) {
-            update_option('osm_disable_cta_button', 'yes');
-        } else {
-            update_option('osm_disable_cta_button', 'no');
-        }
+
 
         if (isset($_POST['osm_developer_mode'])) {
             update_option('osm_developer_mode', 'yes');
         } else {
             update_option('osm_developer_mode', 'no');
+        }
+
+        if (isset($_POST['osm_disable_asset_cache'])) {
+            update_option('osm_disable_asset_cache', 'yes');
+        } else {
+            update_option('osm_disable_asset_cache', 'no');
+        }
+
+        if (isset($_POST['osm_zoom_speed'])) {
+            update_option('osm_zoom_speed', intval($_POST['osm_zoom_speed']));
+        }
+        
+        if (isset($_POST['osm_sign_zoom_threshold'])) {
+            // Need to convert string to float for the threshold, since JS maps map.getZoom()
+            update_option('osm_sign_zoom_threshold', floatval($_POST['osm_sign_zoom_threshold']));
         }
     }
 
@@ -338,6 +341,35 @@ function osm_ajax_save_settings() {
         }
         if (isset($_POST['osm_bubble_color'])) {
             update_option('osm_bubble_color', sanitize_hex_color($_POST['osm_bubble_color']));
+        }
+    }
+
+    // Save Map Box Settings
+    if ($settings_group === 'mapbox' || $settings_group === 'all') {
+        if (isset($_POST['osm_default_cta_url'])) {
+            update_option('osm_default_cta_url', sanitize_text_field($_POST['osm_default_cta_url']));
+        }
+        
+        if (isset($_POST['osm_popup_button_text'])) {
+            update_option('osm_popup_button_text', sanitize_text_field($_POST['osm_popup_button_text']));
+        }
+        
+        if (isset($_POST['osm_disable_cta_button'])) {
+            update_option('osm_disable_cta_button', 'yes');
+        } else {
+            update_option('osm_disable_cta_button', 'no');
+        }
+        
+        if (isset($_POST['osm_enable_image_lightbox'])) {
+            update_option('osm_enable_image_lightbox', 'yes');
+        } else {
+            update_option('osm_enable_image_lightbox', 'no');
+        }
+        
+        if (isset($_POST['osm_enable_title_link'])) {
+            update_option('osm_enable_title_link', 'yes');
+        } else {
+            update_option('osm_enable_title_link', 'no');
         }
     }
 
@@ -382,7 +414,7 @@ function osm_ajax_remove_duplicates() {
 
     global $wpdb;
     $type = isset($_POST['type']) ? sanitize_text_field($_POST['type']) : 'all';
-    $dry_run = isset($_POST['dry_run']) && $_POST['dry_run'] === '1';
+
     
     $logs = [];
     $found_duplicates = false;
@@ -402,22 +434,45 @@ function osm_ajax_remove_duplicates() {
         if ($duplicate_group) {
             $found_duplicates = true;
             $logs[] = "Processing duplicate group: '{$duplicate_group->post_title}' (Found {$duplicate_group->count} records)";
+            $winner_id = $duplicate_group->min_id;
 
             $ids_to_delete = $wpdb->get_col($wpdb->prepare("
                 SELECT ID FROM {$wpdb->posts}
                 WHERE post_type = %s AND post_status = 'publish'
                 AND post_title = %s AND ID != %d
-            ", $post_type, $duplicate_group->post_title, $duplicate_group->min_id));
+            ", $post_type, $duplicate_group->post_title, $winner_id));
 
-            foreach ($ids_to_delete as $id) {
+            foreach ($ids_to_delete as $loser_id) {
+                // If we are deleting a CITY, we must reassign its signs to the WINNER city
+                if ($post_type === 'city') {
+                    // Find signs linked to the loser city
+                    $linked_signs = $wpdb->get_results($wpdb->prepare("
+                        SELECT post_id FROM {$wpdb->postmeta}
+                        WHERE meta_key = '_sign_city_id' AND meta_value = %d
+                    ", $loser_id));
+
+                    if ($linked_signs) {
+                        foreach ($linked_signs as $sign) {
+                            if ($dry_run) {
+                                $logs[] = "[Dry Run] Would reassign Sign ID {$sign->post_id} from City ID $loser_id to City ID $winner_id";
+                            } else {
+                                update_post_meta($sign->post_id, '_sign_city_id', $winner_id);
+                                // Also update the textual city name for API/List View consistency
+                                update_post_meta($sign->post_id, '_sign_city', $duplicate_group->post_title);
+                                $logs[] = "Reassigned Sign ID {$sign->post_id} to City ID $winner_id";
+                            }
+                        }
+                    }
+                }
+
                 if ($dry_run) {
-                    $logs[] = "[Dry Run] Would delete ID: $id";
+                    $logs[] = "[Dry Run] Would delete ID: $loser_id";
                 } else {
                     $start_time = microtime(true);
-                    wp_delete_post($id, true);
+                    wp_delete_post($loser_id, true);
                     $end_time = microtime(true);
                     $duration = round($end_time - $start_time, 4);
-                    $logs[] = "Deleted ID: $id ({$duration} sec)";
+                    $logs[] = "Deleted ID: $loser_id ({$duration} sec)";
                 }
             }
         }
@@ -442,3 +497,160 @@ function osm_ajax_remove_duplicates() {
     }
 }
 add_action('wp_ajax_osm_remove_duplicates', 'osm_ajax_remove_duplicates');
+
+function osm_ajax_bulk_delete() {
+    check_ajax_referer('osm_ajax_nonce', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Insufficient permissions.');
+    }
+
+    $type = isset($_POST['type']) ? sanitize_text_field($_POST['type']) : '';
+    $logs = [];
+
+    // Increase time limit
+    set_time_limit(0); 
+
+    if ($type === 'all_signs') {
+        // Get signs
+        $args = array(
+            'post_type' => 'sign',
+            'posts_per_page' => 50, // Batch size
+            'fields' => 'ids'
+        );
+        $posts = get_posts($args);
+
+        if (empty($posts)) {
+             $logs[] = "No signs found to delete.";
+             wp_send_json_success(['status' => 'complete', 'logs' => $logs]);
+        }
+
+        $count = 0;
+        foreach ($posts as $post_id) {
+            // DOUBLE CHECK: Ensure we are only deleting signs
+            if (get_post_type($post_id) === 'sign') {
+                wp_delete_post($post_id, true); // Force delete
+                $count++;
+            }
+        }
+        $logs[] = "Deleted $count signs in this batch.";
+
+        // Check if more remain (simple check)
+        $remaining_args = array(
+            'post_type' => 'sign',
+            'posts_per_page' => 1,
+            'fields' => 'ids'
+        );
+        $remaining = get_posts($remaining_args);
+        
+        if (!empty($remaining)) {
+            wp_send_json_success(['status' => 'continue', 'logs' => $logs]);
+        } else {
+            $logs[] = "All signs deleted.";
+            wp_send_json_success(['status' => 'complete', 'logs' => $logs]);
+        }
+
+    } elseif ($type === 'orphaned_cities') {
+        global $wpdb;
+        
+        // SQL to efficiently find cities that are NOT referenced in _sign_city_id meta
+        $sql = "
+            SELECT p.ID 
+            FROM {$wpdb->posts} p
+            LEFT JOIN {$wpdb->postmeta} pm ON (pm.meta_key = '_sign_city_id' AND pm.meta_value = p.ID)
+            WHERE p.post_type = 'city' 
+            AND p.post_status = 'publish'
+            AND pm.post_id IS NULL
+            LIMIT 50
+        ";
+        
+        $orphaned_city_ids = $wpdb->get_col($sql);
+
+        if (empty($orphaned_city_ids)) {
+            $logs[] = "No orphaned cities found.";
+            wp_send_json_success(['status' => 'complete', 'logs' => $logs]);
+        }
+
+        $count = 0;
+        foreach ($orphaned_city_ids as $city_id) {
+            // DOUBLE CHECK: Ensure we are only deleting cities
+            if (get_post_type($city_id) === 'city') {
+                wp_delete_post($city_id, true);
+                $count++;
+            }
+        }
+        
+        $logs[] = "Deleted $count orphaned cities.";
+
+        // Check if more remain
+         $remaining_check = $wpdb->get_var("
+            SELECT p.ID 
+            FROM {$wpdb->posts} p
+            LEFT JOIN {$wpdb->postmeta} pm ON (pm.meta_key = '_sign_city_id' AND pm.meta_value = p.ID)
+            WHERE p.post_type = 'city' 
+            AND p.post_status = 'publish'
+            AND pm.post_id IS NULL
+            LIMIT 1
+        ");
+
+        if ($remaining_check) {
+             wp_send_json_success(['status' => 'continue', 'logs' => $logs]);
+        } else {
+             $logs[] = "All orphaned cities deleted.";
+             wp_send_json_success(['status' => 'complete', 'logs' => $logs]);
+        }
+    } else {
+        wp_send_json_error('Invalid action type.');
+    }
+}
+add_action('wp_ajax_osm_bulk_delete', 'osm_ajax_bulk_delete');
+
+function osm_ajax_bubble_sync() {
+    check_ajax_referer('osm_ajax_nonce', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Insufficient permissions.');
+    }
+
+    // Increase time limit
+    set_time_limit(0);
+
+    global $wpdb;
+
+    // Get all city IDs
+    $sql = "
+        SELECT ID 
+        FROM {$wpdb->posts} 
+        WHERE post_type = 'city' AND post_status = 'publish'
+    ";
+    
+    $city_ids = $wpdb->get_col($sql);
+
+    if (empty($city_ids)) {
+        wp_send_json_success(['message' => 'No cities found to sync.']);
+    }
+
+    $updated_count = 0;
+
+    foreach ($city_ids as $city_id) {
+        // Count signs for this city
+        $count_sql = $wpdb->prepare("
+            SELECT COUNT(p.ID) 
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} pm ON (p.ID = pm.post_id)
+            WHERE p.post_type = 'sign' 
+            AND p.post_status = 'publish' 
+            AND pm.meta_key = '_sign_city_id' 
+            AND pm.meta_value = %d
+        ", $city_id);
+        
+        $sign_count = (int) $wpdb->get_var($count_sql);
+
+        // Update the display_count / _city_count
+        update_post_meta($city_id, '_city_count', $sign_count);
+        $updated_count++;
+    }
+
+    wp_send_json_success(['message' => "Successfully synced bubble counts for {$updated_count} cities."]);
+}
+add_action('wp_ajax_osm_bubble_sync', 'osm_ajax_bubble_sync');

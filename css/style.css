@@ -206,3 +206,90 @@
 .osm-toast.success {
     background-color: #388e3c;
 }
+
+/* --- Lightbox --- */
+.osm-lightbox-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 10000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.osm-lightbox-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.osm-lightbox-image {
+    max-width: 90%;
+    max-height: 90vh;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.osm-lightbox-overlay.active .osm-lightbox-image {
+    transform: scale(1);
+}
+
+.osm-lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 40px;
+    cursor: pointer;
+    line-height: 1;
+    z-index: 10001;
+}
+
+/* --- Popup Image Wrapper --- */
+.osm-popup-image-wrapper {
+    position: relative;
+    width: 100%;
+    height: 120px; /* Match existing img height */
+}
+
+.osm-popup-image-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    margin-bottom: 0; /* Override existing margin */
+    display: block;
+    cursor: pointer;
+}
+
+.osm-expand-icon {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    pointer-events: none; /* Let clicks pass through to wrapper/img if needed, or handle on wrapper */
+    transition: background 0.2s;
+}
+
+.osm-popup-image-wrapper:hover .osm-expand-icon {
+    background: rgba(0, 0, 0, 0.8);
+}

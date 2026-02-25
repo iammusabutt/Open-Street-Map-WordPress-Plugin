@@ -19,6 +19,7 @@ function create_city_post_type() {
             'supports' => array( 'title', 'thumbnail' ),
             'show_in_rest' => true,
             'show_in_menu' => 'osm-main-menu',
+            'rewrite' => array( 'slug' => 'city', 'with_front' => false ),
         )
     );
 }
@@ -37,6 +38,7 @@ function create_sign_post_type() {
             'supports' => array( 'title', 'thumbnail' ),
             'show_in_rest' => true,
             'show_in_menu' => 'osm-main-menu',
+            'rewrite' => array( 'slug' => 'sign', 'with_front' => false ),
         )
     );
 }
@@ -398,16 +400,31 @@ function populate_city_column_for_signs( $column, $post_id ) {
         $city_id = get_post_meta( $post_id, '_sign_city_id', true );
         $city_name = get_post_meta( $post_id, '_sign_city', true );
         
+        // Reverse Mechanism: If ID is missing but Name exists, try to find the ID
+        if ( empty( $city_id ) && ! empty( $city_name ) ) {
+            $city_post = get_page_by_title( $city_name, OBJECT, 'city' );
+            if ( $city_post ) {
+                $city_id = $city_post->ID;
+                // Optional: Update the meta so it's fixed for next time
+                update_post_meta( $post_id, '_sign_city_id', $city_id );
+            }
+        }
+
         if ( $city_id ) {
             // If we have an ID, try to get the current title in case it changed
             $city_post = get_post($city_id);
             if ($city_post) {
+                // If we found the post, use its title (most accurate)
                 $city_name = $city_post->post_title;
                 $city_edit_link = get_edit_post_link( $city_id );
                 echo '<a href="' . esc_url( $city_edit_link ) . '">' . esc_html( $city_name ) . '</a>';
             } else {
-                echo esc_html( $city_name ); // Fallback to saved name
+                // ID exists but post doesn't? Fallback to stored name
+                echo esc_html( $city_name ); 
             }
+        } elseif ( ! empty( $city_name ) ) {
+             // Still no ID found, just show the name
+             echo esc_html( $city_name );
         } else {
              echo '—';
         }

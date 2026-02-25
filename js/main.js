@@ -78,6 +78,67 @@ function showToast(message, type = 'error') {
   }, 3000);
 }
 
+// Lightbox Logic
+function setupLightbox() {
+  if (document.getElementById('osm-lightbox')) return;
+
+  const lightbox = document.createElement('div');
+  lightbox.id = 'osm-lightbox';
+  lightbox.className = 'osm-lightbox-overlay';
+  lightbox.innerHTML = `
+        <button class="osm-lightbox-close">&times;</button>
+        <img class="osm-lightbox-image" src="" alt="Full view">
+    `;
+  document.body.appendChild(lightbox);
+
+  const closeBtn = lightbox.querySelector('.osm-lightbox-close');
+  const overlay = lightbox;
+
+  function closeLightbox() {
+    lightbox.classList.remove('active');
+    setTimeout(() => {
+      lightbox.querySelector('img').src = '';
+    }, 300);
+  }
+
+  closeBtn.addEventListener('click', closeLightbox);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeLightbox();
+  });
+
+  // Accessibility
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lightbox.classList.contains('active')) {
+      closeLightbox();
+    }
+  });
+
+  // Expose open function globally (optional, but good for debugging)
+  window.openOsmLightbox = function (src) {
+    const img = lightbox.querySelector('img');
+    img.src = src;
+    lightbox.classList.add('active');
+  };
+
+  // Event Delegation for Popup Images (fix for inline onclick issues)
+  document.body.addEventListener('click', (e) => {
+    const wrapper = e.target.closest('.osm-popup-image-wrapper');
+    if (wrapper) {
+      if (plugin_vars.enable_image_lightbox !== 'yes') {
+        return;
+      }
+
+      const img = wrapper.querySelector('img');
+      if (img && img.src) {
+        window.openOsmLightbox(img.src);
+      }
+    }
+  });
+}
+
+// Initialize Lightbox immediately (or on DOMContentLoaded, but function needs to be global for onclick)
+setupLightbox();
+
 document.addEventListener("DOMContentLoaded", async () => {
   // Apply Custom Colors
   if (plugin_vars.colors) {
@@ -193,6 +254,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   map.addControl(new maplibregl.NavigationControl());
+  map.addControl(new maplibregl.FullscreenControl(), 'top-right');
+
+  // Interactive Custom Zoom Speed
+  const userZoomSpeed = plugin_vars.zoom_speed ? parseInt(plugin_vars.zoom_speed, 10) : 12;
+  // Default is 1/450, so max multiplier 50 makes it roughly 1/9
+  // If user sets 12 (my default fast one), it maps to roughly 1/37
+  map.scrollZoom.setWheelZoomRate(userZoomSpeed / 450);
+  map.scrollZoom.setZoomRate((userZoomSpeed * 2) / 100);
 
   // ===== DATA SOURCES =====
   const cityClusterGeoJSON = {
@@ -205,6 +274,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         count: c.count,
         img: c.img,
         venue: c.venue,
+        link: c.link,
       },
     })),
   };
@@ -222,6 +292,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         href: s.href,
         cta_behavior: s.cta_behavior,
         cta_url: s.cta_url,
+        link: s.link,
       },
     })),
   };
@@ -282,13 +353,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         "circle-radius": [
           "step",
           ["get", "totalCount"], // ⭐ summed cluster count
-          18, // < 18 signs
-          25, // 50–149 signs
-          24,
-          150,
-          25, // 150–299 signs
-          300,
-          25, // 300+
+          16, // if count < 5
+          5, 18,
+          10, 20,
+          25, 22,
+          50, 24,
+          100, 26,
+          250, 29,
+          500, 32
         ],
         "circle-stroke-color": "#fff",
         "circle-stroke-width": 2,
@@ -302,7 +374,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       filter: ["!", ["has", "point_count"]], // ⭐ NOT clusters
       paint: {
         "circle-color": bubbleColor,
-        "circle-radius": 25,
+        "circle-radius": [
+          "step",
+          ["get", "count"], // ⭐ individual city count
+          16, // if count < 5
+          5, 18,
+          10, 20,
+          25, 22,
+          50, 24,
+          100, 26,
+          250, 29,
+          500, 32
+        ],
         "circle-stroke-color": "#fff",
         "circle-stroke-width": 2,
         "circle-opacity": 0.9,
@@ -347,8 +430,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       type: "geojson",
       data: signGeoJSON,
       cluster: true,
-      clusterMaxZoom: 18,
-      clusterRadius: 40,
+      clusterMaxZoom: 10,
+      clusterRadius: 20,
     });
 
     map.addLayer({
@@ -447,12 +530,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       const ctaUrl = getCTAUrl('default', null);
       const btnText = plugin_vars.cta.button_text || 'Log in to get started';
       const ctaHtml = ctaUrl ? `<a href="${ctaUrl}" target="_blank" class="cta">${btnText}</a>` : '';
+      const expandIconHtml = plugin_vars.enable_image_lightbox === 'yes' ? `
+                      <div class="osm-expand-icon">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                      </div>` : '';
 
       const title = `${city.venue} in ${city.name}`;
       const popupHTML = `
                 <div class="popup">
-                  <img src="${city.img}" alt="${city.venue}">
-                  <strong>${city.venue} in ${city.name}</strong>
+                  <div class="osm-popup-image-wrapper">
+                      <img src="${city.img}" alt="${city.venue}">
+${expandIconHtml}
+                  </div>
+                  <strong>${plugin_vars.enable_title_link === 'yes' ? `<a href="${city.link || '#'}" style="text-decoration: none; color: inherit;">` : ''}${city.venue} in ${city.name}${plugin_vars.enable_title_link === 'yes' ? '</a>' : ''}</strong>
                   ${ctaHtml}
                 </div>
               `;
@@ -543,14 +633,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       const btnText = plugin_vars.cta.button_text || 'Log in to get started';
 
       const ctaHtml = ctaUrl ? `<a href="${ctaUrl}" target="_blank" class="cta">${btnText}</a>` : '';
+      const expandIconHtml = plugin_vars.enable_image_lightbox === 'yes' ? `
+          <div class="osm-expand-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+          </div>` : '';
 
       new maplibregl.Popup({ offset: 20 })
         .setLngLat(feature.geometry.coordinates)
         .setHTML(
           `
     <div class="popup">
-      <img src="${p.img}" alt="${p.title}">
-      <strong>${p.title}</strong><br/>
+      <div class="osm-popup-image-wrapper">
+          <img src="${p.img}" alt="${p.title}">
+${expandIconHtml}
+      </div>
+      <strong>${plugin_vars.enable_title_link === 'yes' ? `<a href="${p.link || '#'}" style="text-decoration: none; color: inherit;">` : ''}${p.title}${plugin_vars.enable_title_link === 'yes' ? '</a>' : ''}</strong><br/>
       ${ctaHtml}
     </div>
   `
@@ -560,7 +657,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // ===== ZOOM SWITCH BETWEEN LEVELS =====
-    const ZOOM_SWITCH = 9;
+    const ZOOM_SWITCH = plugin_vars.sign_zoom_threshold ? parseFloat(plugin_vars.sign_zoom_threshold) : 4.5;
     function safeSetVisibility(id, visibility) {
       if (map.getLayer(id))
         map.setLayoutProperty(id, "visibility", visibility);
