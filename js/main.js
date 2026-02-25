@@ -139,6 +139,67 @@ function setupLightbox() {
 // Initialize Lightbox immediately (or on DOMContentLoaded, but function needs to be global for onclick)
 setupLightbox();
 
+// Lightbox Logic
+function setupLightbox() {
+  if (document.getElementById('osm-lightbox')) return;
+
+  const lightbox = document.createElement('div');
+  lightbox.id = 'osm-lightbox';
+  lightbox.className = 'osm-lightbox-overlay';
+  lightbox.innerHTML = `
+        <button class="osm-lightbox-close">&times;</button>
+        <img class="osm-lightbox-image" src="" alt="Full view">
+    `;
+  document.body.appendChild(lightbox);
+
+  const closeBtn = lightbox.querySelector('.osm-lightbox-close');
+  const overlay = lightbox;
+
+  function closeLightbox() {
+    lightbox.classList.remove('active');
+    setTimeout(() => {
+      lightbox.querySelector('img').src = '';
+    }, 300);
+  }
+
+  closeBtn.addEventListener('click', closeLightbox);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeLightbox();
+  });
+
+  // Accessibility
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lightbox.classList.contains('active')) {
+      closeLightbox();
+    }
+  });
+
+  // Expose open function globally (optional, but good for debugging)
+  window.openOsmLightbox = function (src) {
+    const img = lightbox.querySelector('img');
+    img.src = src;
+    lightbox.classList.add('active');
+  };
+
+  // Event Delegation for Popup Images (fix for inline onclick issues)
+  document.body.addEventListener('click', (e) => {
+    const wrapper = e.target.closest('.osm-popup-image-wrapper');
+    if (wrapper) {
+      if (plugin_vars.enable_image_lightbox !== 'yes') {
+        return;
+      }
+
+      const img = wrapper.querySelector('img');
+      if (img && img.src) {
+        window.openOsmLightbox(img.src);
+      }
+    }
+  });
+}
+
+// Initialize Lightbox immediately (or on DOMContentLoaded, but function needs to be global for onclick)
+setupLightbox();
+
 document.addEventListener("DOMContentLoaded", async () => {
   // Apply Custom Colors
   if (plugin_vars.colors) {
@@ -275,6 +336,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         img: c.img,
         venue: c.venue,
         link: c.link,
+        link: c.link,
       },
     })),
   };
@@ -292,6 +354,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         href: s.href,
         cta_behavior: s.cta_behavior,
         cta_url: s.cta_url,
+        link: s.link,
         link: s.link,
       },
     })),
@@ -534,10 +597,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                       <div class="osm-expand-icon">
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
                       </div>` : '';
+      const expandIconHtml = plugin_vars.enable_image_lightbox === 'yes' ? `
+                      <div class="osm-expand-icon">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                      </div>` : '';
 
       const title = `${city.venue} in ${city.name}`;
       const popupHTML = `
                 <div class="popup">
+                  <div class="osm-popup-image-wrapper">
+                      <img src="${city.img}" alt="${city.venue}">
+${expandIconHtml}
+                  </div>
+                  <strong>${plugin_vars.enable_title_link === 'yes' ? `<a href="${city.link || '#'}" style="text-decoration: none; color: inherit;">` : ''}${city.venue} in ${city.name}${plugin_vars.enable_title_link === 'yes' ? '</a>' : ''}</strong>
                   <div class="osm-popup-image-wrapper">
                       <img src="${city.img}" alt="${city.venue}">
 ${expandIconHtml}
@@ -637,12 +709,21 @@ ${expandIconHtml}
           <div class="osm-expand-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
           </div>` : '';
+      const expandIconHtml = plugin_vars.enable_image_lightbox === 'yes' ? `
+          <div class="osm-expand-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+          </div>` : '';
 
       new maplibregl.Popup({ offset: 20 })
         .setLngLat(feature.geometry.coordinates)
         .setHTML(
           `
     <div class="popup">
+      <div class="osm-popup-image-wrapper">
+          <img src="${p.img}" alt="${p.title}">
+${expandIconHtml}
+      </div>
+      <strong>${plugin_vars.enable_title_link === 'yes' ? `<a href="${p.link || '#'}" style="text-decoration: none; color: inherit;">` : ''}${p.title}${plugin_vars.enable_title_link === 'yes' ? '</a>' : ''}</strong><br/>
       <div class="osm-popup-image-wrapper">
           <img src="${p.img}" alt="${p.title}">
 ${expandIconHtml}

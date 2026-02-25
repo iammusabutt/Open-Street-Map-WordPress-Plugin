@@ -303,6 +303,7 @@ function osm_ajax_save_settings() {
 
 
 
+
         if (isset($_POST['osm_developer_mode'])) {
             update_option('osm_developer_mode', 'yes');
         } else {
@@ -341,6 +342,35 @@ function osm_ajax_save_settings() {
         }
         if (isset($_POST['osm_bubble_color'])) {
             update_option('osm_bubble_color', sanitize_hex_color($_POST['osm_bubble_color']));
+        }
+    }
+
+    // Save Map Box Settings
+    if ($settings_group === 'mapbox' || $settings_group === 'all') {
+        if (isset($_POST['osm_default_cta_url'])) {
+            update_option('osm_default_cta_url', sanitize_text_field($_POST['osm_default_cta_url']));
+        }
+        
+        if (isset($_POST['osm_popup_button_text'])) {
+            update_option('osm_popup_button_text', sanitize_text_field($_POST['osm_popup_button_text']));
+        }
+        
+        if (isset($_POST['osm_disable_cta_button'])) {
+            update_option('osm_disable_cta_button', 'yes');
+        } else {
+            update_option('osm_disable_cta_button', 'no');
+        }
+        
+        if (isset($_POST['osm_enable_image_lightbox'])) {
+            update_option('osm_enable_image_lightbox', 'yes');
+        } else {
+            update_option('osm_enable_image_lightbox', 'no');
+        }
+        
+        if (isset($_POST['osm_enable_title_link'])) {
+            update_option('osm_enable_title_link', 'yes');
+        } else {
+            update_option('osm_enable_title_link', 'no');
         }
     }
 
@@ -415,6 +445,7 @@ function osm_ajax_remove_duplicates() {
     global $wpdb;
     $type = isset($_POST['type']) ? sanitize_text_field($_POST['type']) : 'all';
 
+
     
     $logs = [];
     $found_duplicates = false;
@@ -434,6 +465,7 @@ function osm_ajax_remove_duplicates() {
         if ($duplicate_group) {
             $found_duplicates = true;
             $logs[] = "Processing duplicate group: '{$duplicate_group->post_title}' (Found {$duplicate_group->count} records)";
+            $winner_id = $duplicate_group->min_id;
             $winner_id = $duplicate_group->min_id;
 
             $ids_to_delete = $wpdb->get_col($wpdb->prepare("
@@ -465,13 +497,41 @@ function osm_ajax_remove_duplicates() {
                     }
                 }
 
+            ", $post_type, $duplicate_group->post_title, $winner_id));
+
+            foreach ($ids_to_delete as $loser_id) {
+                // If we are deleting a CITY, we must reassign its signs to the WINNER city
+                if ($post_type === 'city') {
+                    // Find signs linked to the loser city
+                    $linked_signs = $wpdb->get_results($wpdb->prepare("
+                        SELECT post_id FROM {$wpdb->postmeta}
+                        WHERE meta_key = '_sign_city_id' AND meta_value = %d
+                    ", $loser_id));
+
+                    if ($linked_signs) {
+                        foreach ($linked_signs as $sign) {
+                            if ($dry_run) {
+                                $logs[] = "[Dry Run] Would reassign Sign ID {$sign->post_id} from City ID $loser_id to City ID $winner_id";
+                            } else {
+                                update_post_meta($sign->post_id, '_sign_city_id', $winner_id);
+                                // Also update the textual city name for API/List View consistency
+                                update_post_meta($sign->post_id, '_sign_city', $duplicate_group->post_title);
+                                $logs[] = "Reassigned Sign ID {$sign->post_id} to City ID $winner_id";
+                            }
+                        }
+                    }
+                }
+
                 if ($dry_run) {
+                    $logs[] = "[Dry Run] Would delete ID: $loser_id";
                     $logs[] = "[Dry Run] Would delete ID: $loser_id";
                 } else {
                     $start_time = microtime(true);
                     wp_delete_post($loser_id, true);
+                    wp_delete_post($loser_id, true);
                     $end_time = microtime(true);
                     $duration = round($end_time - $start_time, 4);
+                    $logs[] = "Deleted ID: $loser_id ({$duration} sec)";
                     $logs[] = "Deleted ID: $loser_id ({$duration} sec)";
                 }
             }
