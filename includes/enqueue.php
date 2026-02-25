@@ -16,15 +16,9 @@ function open_street_map_enqueue_scripts() {
     $disable_cache = get_option('osm_disable_asset_cache') === 'yes';
     $version = $disable_cache ? time() : '1.0.2';
 
-    // Determine version for cache busting
-    $disable_cache = get_option('osm_disable_asset_cache') === 'yes';
-    $version = $disable_cache ? time() : '1.0.2';
-
     // Enqueue Plugin Styles and Scripts
     wp_enqueue_style( 'open-street-map-style', plugin_dir_url( __FILE__ ) . '../css/style.css', array(), $version );
-    wp_enqueue_style( 'open-street-map-style', plugin_dir_url( __FILE__ ) . '../css/style.css', array(), $version );
     wp_enqueue_style( 'google-fonts-material-symbols', 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200', array(), null );
-    wp_enqueue_script( 'open-street-map-main', plugin_dir_url( __FILE__ ) . '../js/main.js', array( 'maplibre-gl-js', 'fuse-js' ), $version, true );
     wp_enqueue_script( 'open-street-map-main', plugin_dir_url( __FILE__ ) . '../js/main.js', array( 'maplibre-gl-js', 'fuse-js' ), $version, true );
 
     // Pass data to JavaScript
@@ -78,19 +72,7 @@ function osm_enqueue_admin_scripts($hook) {
     } else {
         $admin_js_ver = '1.0.8'; // Bumping version manually to force update
     }
-    $admin_js_path = plugin_dir_path( __FILE__ ) . '../admin/js/admin.js';
     
-    // Determine version for cache busting (same as frontend)
-    $disable_cache = get_option('osm_disable_asset_cache') === 'yes';
-    
-    // Force version 1.0.8 or allow disable cache
-    if ($disable_cache) {
-        $admin_js_ver = time();
-    } else {
-        $admin_js_ver = '1.0.8'; // Bumping version manually to force update
-    }
-    
-    wp_enqueue_script( 'osm-admin-script', plugin_dir_url( __FILE__ ) . '../admin/js/admin.js', array( 'jquery', 'wp-color-picker' ), $admin_js_ver, true );
     wp_enqueue_script( 'osm-admin-script', plugin_dir_url( __FILE__ ) . '../admin/js/admin.js', array( 'jquery', 'wp-color-picker' ), $admin_js_ver, true );
     wp_localize_script( 'osm-admin-script', 'osm_admin_vars', array(
         'nonce' => wp_create_nonce( 'osm_ajax_nonce' )
