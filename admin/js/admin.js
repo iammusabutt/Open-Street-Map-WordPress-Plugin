@@ -98,6 +98,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const tabs = document.querySelectorAll('.osm-admin-tabs a');
     const panes = document.querySelectorAll('.osm-admin-tab-pane');
 
+    // Restore active tab from localStorage
+    const savedTab = localStorage.getItem('osm_admin_active_tab');
+    if (savedTab) {
+        const targetTab = Array.from(tabs).find(t => t.hash === savedTab);
+        if (targetTab) {
+            tabs.forEach(t => t.classList.remove('nav-tab-active'));
+            targetTab.classList.add('nav-tab-active');
+
+            panes.forEach(pane => pane.classList.remove('active'));
+            const targetPane = document.getElementById(savedTab.substring(1));
+            if (targetPane) {
+                targetPane.classList.add('active');
+            }
+        }
+    }
+
     tabs.forEach(tab => {
         tab.addEventListener('click', function (e) {
             e.preventDefault();
@@ -105,9 +121,12 @@ document.addEventListener('DOMContentLoaded', function () {
             tabs.forEach(t => t.classList.remove('nav-tab-active'));
             this.classList.add('nav-tab-active');
 
+            localStorage.setItem('osm_admin_active_tab', this.hash);
+
             panes.forEach(pane => {
                 if (pane.id === this.hash.substring(1)) {
                     pane.classList.add('active');
+                    if (pane.id === 'dashboard') loadDashboardStats();
                 } else {
                     pane.classList.remove('active');
                 }
@@ -736,5 +755,152 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    let chartTimeline = null;
+    let chartStatus = null;
+    let chartSources = null;
+
+    function loadDashboardStats() {
+        const tbody = document.getElementById('osm-recent-searches');
+        const totalEl = document.getElementById('osm-stat-total');
+        const foundEl = document.getElementById('osm-stat-found');
+        if (!tbody) return;
+
+        const dateFilter = document.getElementById('osm-dashboard-date-filter');
+        const filterValue = dateFilter ? dateFilter.value : 'all_time';
+
+        const formData = new FormData();
+        formData.append('action', 'osm_get_dashboard_stats');
+        formData.append('nonce', ajaxNonce);
+        formData.append('date_filter', filterValue);
+
+        fetch(ajaxurl, {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const total = parseInt(data.data.total) || 0;
+                    const found = parseInt(data.data.found) || 0;
+                    const recent = data.data.recent || [];
+
+                    totalEl.textContent = total;
+                    foundEl.textContent = total > 0 ? Math.round((found / total) * 100) + '%' : '0%';
+
+                    tbody.innerHTML = '';
+                    if (recent.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5">No searches yet.</td></tr>';
+                    } else {
+                        recent.forEach(row => {
+                            const tr = document.createElement('tr');
+
+                            let statusColor = row.found_status === 'found' ? '#46b450' : '#dc3232';
+                            let sourceBadge = '';
+                            if (row.source === 'local') sourceBadge = '<span style="background:#e5f5fa;color:#007cba;padding:2px 6px;border-radius:3px;font-size:11px;">Local DB</span>';
+                            else if (row.source === 'nominatim') sourceBadge = '<span style="background:#f0f0f1;color:#50575e;padding:2px 6px;border-radius:3px;font-size:11px;">Nominatim</span>';
+                            else if (row.source === 'fuse') sourceBadge = '<span style="background:#fcf0f1;color:#d63638;padding:2px 6px;border-radius:3px;font-size:11px;">Fuzzy</span>';
+                            else sourceBadge = '<span style="color:#999">-</span>';
+
+                            tr.innerHTML = `
+                            <td><strong>${row.search_query}</strong></td>
+                            <td><span style="display:inline-block;background:#f0f0f1;padding:2px 8px;border-radius:10px;font-weight:bold;font-size:12px;color:#3c434a;">${row.search_count}</span></td>
+                            <td>${new Date(row.latest_time).toLocaleString()}</td>
+                            <td style="color:${statusColor};font-weight:600;">${row.found_status.toUpperCase()}</td>
+                            <td>${sourceBadge}</td>
+                        `;
+                            tbody.appendChild(tr);
+                        });
+                    }
+
+                    const chartsObj = data.data.charts || {};
+                    // --- Timeline Chart ---
+                    const tLabels = chartsObj.timeline ? chartsObj.timeline.map(r => r.date) : [];
+                    const tData = chartsObj.timeline ? chartsObj.timeline.map(r => r.count) : [];
+                    if (chartTimeline) {
+                        chartTimeline.data.labels = tLabels;
+                        chartTimeline.data.datasets[0].data = tData;
+                        chartTimeline.update();
+                    } else if (document.getElementById('osm-chart-timeline')) {
+                        chartTimeline = new Chart(document.getElementById('osm-chart-timeline'), {
+                            type: 'line',
+                            data: {
+                                labels: tLabels,
+                                datasets: [{
+                                    label: 'Total Searches',
+                                    data: tData,
+                                    borderColor: '#2271b1',
+                                    backgroundColor: 'rgba(34, 113, 177, 0.1)',
+                                    tension: 0.3,
+                                    fill: true
+                                }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false }
+                        });
+                    }
+
+                    // --- Status Chart ---
+                    const sLabels = chartsObj.status ? chartsObj.status.map(r => r.found_status.toUpperCase()) : [];
+                    const sData = chartsObj.status ? chartsObj.status.map(r => r.count) : [];
+                    if (chartStatus) {
+                        chartStatus.data.labels = sLabels;
+                        chartStatus.data.datasets[0].data = sData;
+                        chartStatus.update();
+                    } else if (document.getElementById('osm-chart-status')) {
+                        chartStatus = new Chart(document.getElementById('osm-chart-status'), {
+                            type: 'doughnut',
+                            data: {
+                                labels: sLabels,
+                                datasets: [{
+                                    data: sData,
+                                    backgroundColor: ['#46b450', '#dc3232', '#f0b840']
+                                }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false }
+                        });
+                    }
+
+                    // --- Sources Chart ---
+                    const srcLabels = chartsObj.sources ? chartsObj.sources.map(r => r.source.toUpperCase()) : [];
+                    const srcData = chartsObj.sources ? chartsObj.sources.map(r => r.count) : [];
+                    if (chartSources) {
+                        chartSources.data.labels = srcLabels;
+                        chartSources.data.datasets[0].data = srcData;
+                        chartSources.update();
+                    } else if (document.getElementById('osm-chart-sources')) {
+                        chartSources = new Chart(document.getElementById('osm-chart-sources'), {
+                            type: 'bar',
+                            data: {
+                                labels: srcLabels,
+                                datasets: [{
+                                    label: 'Source',
+                                    data: srcData,
+                                    backgroundColor: ['#007cba', '#50575e', '#d63638', '#999999']
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } }
+                            }
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Dashboard fetch error:', error);
+                tbody.innerHTML = '<tr><td colspan="5" style="color:red;">Error loading data</td></tr>';
+            });
+    }
+
+    // Load initial dashboard stats if it exists
+    const dashboardPane = document.getElementById('dashboard');
+    if (dashboardPane && dashboardPane.classList.contains('active')) {
+        loadDashboardStats();
+    }
+
+    const dateFilterDropdown = document.getElementById('osm-dashboard-date-filter');
+    if (dateFilterDropdown) {
+        dateFilterDropdown.addEventListener('change', loadDashboardStats);
+    }
 
 });

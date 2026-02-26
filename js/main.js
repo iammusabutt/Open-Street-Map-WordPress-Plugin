@@ -4,9 +4,20 @@ let map;
 async function searchCity(city) {
   const input = city || document.getElementById("search").value.trim().toLowerCase();
 
+  const logSearch = (status, source) => {
+    if (plugin_vars.log_search_url) {
+      fetch(plugin_vars.log_search_url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: input, status: status, source: source })
+      }).catch(e => console.error(e));
+    }
+  };
+
   // 1. Try Local Search (Exact Match)
   const coords = CITY_CENTERS[input];
   if (coords) {
+    logSearch('found', 'local');
     map.flyTo({ center: coords, zoom: 10, speed: 0.7 });
     return;
   }
@@ -26,6 +37,7 @@ async function searchCity(city) {
       const lon = parseFloat(result.lon);
 
       // Fly to the found location
+      logSearch('found', 'nominatim');
       map.flyTo({ center: [lon, lat], zoom: 10, speed: 0.7 });
     } else {
       // 3. Nominatim returned no results -> Try Local Fuzzy Match (Fuse.js)
@@ -34,11 +46,13 @@ async function searchCity(city) {
         if (fuzzyResult.length > 0 && fuzzyResult[0].score < 0.3) {
           const bestMatch = fuzzyResult[0].item;
           console.log(`Nominatim failed, but local fuzzy match found: ${input} -> ${bestMatch.name}`);
+          logSearch('found', 'fuse');
           map.flyTo({ center: bestMatch.coords, zoom: 10, speed: 0.7 });
           return;
         }
       }
 
+      logSearch('not_found', 'none');
       showToast("City not found in local database or via global search.");
     }
   } catch (error) {
@@ -49,10 +63,12 @@ async function searchCity(city) {
       if (fuzzyResult.length > 0 && fuzzyResult[0].score < 0.3) {
         const bestMatch = fuzzyResult[0].item;
         console.log(`Nominatim error, fallback to local fuzzy match: ${input} -> ${bestMatch.name}`);
+        logSearch('found', 'fuse');
         map.flyTo({ center: bestMatch.coords, zoom: 10, speed: 0.7 });
         return;
       }
     }
+    logSearch('error', 'none');
     showToast("Search failed. Please try again.");
   }
 }

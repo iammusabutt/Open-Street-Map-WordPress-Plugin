@@ -179,3 +179,45 @@ function osm_proxy_search_callback( $request ) {
     return new WP_REST_Response( $data, 200 );
 }
 
+
+// REST API endpoint for logging searches
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'osm/v1', '/log-search', array(
+        'methods' => 'POST',
+        'callback' => 'osm_log_search_callback',
+        'permission_callback' => '__return_true'
+    ) );
+} );
+
+function osm_log_search_callback( $request ) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'osm_searches';
+    
+    // Check if table exists
+    if($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        return new WP_Error( 'missing_table', 'Searches table does not exist', array('status' => 500) );
+    }
+
+    $query = sanitize_text_field( $request->get_param('query') );
+    $status = sanitize_text_field( $request->get_param('status') );
+    $source = sanitize_text_field( $request->get_param('source') );
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field($_SERVER['REMOTE_ADDR']) : '';
+    
+    if ( empty($query) ) {
+        return new WP_Error( 'missing_param', 'Query is required', array('status' => 400) );
+    }
+    
+    $wpdb->insert(
+        $table_name,
+        array(
+            'time' => current_time('mysql'),
+            'search_query' => $query,
+            'found_status' => $status,
+            'source' => $source,
+            'ip_address' => $ip
+        )
+    );
+    
+    return new WP_REST_Response( array('success' => true), 200 );
+}
+

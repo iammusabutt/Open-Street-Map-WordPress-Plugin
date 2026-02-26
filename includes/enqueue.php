@@ -27,6 +27,7 @@ function open_street_map_enqueue_scripts() {
         'cities_url' => get_rest_url( null, 'osm/v1/cities' ),
         'signs_url' => get_rest_url( null, 'osm/v1/signs' ),
         'proxy_url' => get_rest_url( null, 'osm/v1/proxy-search' ),
+        'log_search_url' => get_rest_url( null, 'osm/v1/log-search' ),
         'colors' => array(
             'popup_bg' => get_option('osm_popup_bg_color', '#ffffff'),
             'popup_btn_bg' => get_option('osm_popup_btn_bg_color', '#007bff'),
@@ -73,7 +74,8 @@ function osm_enqueue_admin_scripts($hook) {
         $admin_js_ver = '1.0.8'; // Bumping version manually to force update
     }
     
-    wp_enqueue_script( 'osm-admin-script', plugin_dir_url( __FILE__ ) . '../admin/js/admin.js', array( 'jquery', 'wp-color-picker' ), $admin_js_ver, true );
+    wp_enqueue_script( 'chart-js', 'https://cdn.jsdelivr.net/npm/chart.js', array(), null, true );
+    wp_enqueue_script( 'osm-admin-script', plugin_dir_url( __FILE__ ) . '../admin/js/admin.js', array( 'jquery', 'wp-color-picker', 'chart-js' ), $admin_js_ver, true );
     wp_localize_script( 'osm-admin-script', 'osm_admin_vars', array(
         'nonce' => wp_create_nonce( 'osm_ajax_nonce' )
     ) );

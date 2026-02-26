@@ -173,7 +173,13 @@ function osm_settings_page_html() {
             <div class="osm-admin-tabs">
                 <ul>
                     <li>
-                        <a href="#settings" class="nav-tab nav-tab-active">
+                        <a href="#dashboard" class="nav-tab nav-tab-active">
+                            <span class="dashicons dashicons-dashboard"></span>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#settings" class="nav-tab">
                             <span class="dashicons dashicons-admin-generic"></span>
                             <span>General Settings</span>
                         </a>
@@ -224,7 +230,73 @@ function osm_settings_page_html() {
                     <?php endif; ?>
                 </ul>
             </div>
-                <div id="settings" class="osm-admin-tab-pane active">
+                <div id="dashboard" class="osm-admin-tab-pane active">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 class="osm-tab-title" style="margin-bottom: 0;">Analytics Dashboard</h2>
+                        <select id="osm-dashboard-date-filter">
+                            <option value="all_time">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="yesterday">Yesterday</option>
+                            <option value="this_week">This Week</option>
+                            <option value="last_week">Last Week</option>
+                            <option value="this_month">This Month</option>
+                            <option value="last_month">Last Month</option>
+                            <option value="last_30_days">Last 30 Days</option>
+                            <option value="this_year">This Year</option>
+                            <option value="last_year">Last Year</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                        <div style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; flex: 1; border-radius: 4px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+                            <h3 style="margin-top: 0;">Total Searches</h3>
+                            <p id="osm-stat-total" style="font-size: 24px; font-weight: bold; margin: 0; color: #2271b1;">...</p>
+                        </div>
+                        <div style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; flex: 1; border-radius: 4px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+                            <h3 style="margin-top: 0;">Found Rate</h3>
+                            <p id="osm-stat-found" style="font-size: 24px; font-weight: bold; margin: 0; color: #46b450;">...</p>
+                        </div>
+                    </div>
+
+                    <div style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px; box-shadow: 0 1px 1px rgba(0,0,0,.04); margin-bottom: 20px;">
+                        <h3 style="margin-top: 0;">Searches Over Time</h3>
+                        <div style="height: 300px; width: 100%;">
+                            <canvas id="osm-chart-timeline"></canvas>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                        <div style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; flex: 1; border-radius: 4px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+                            <h3 style="margin-top: 0;">Search Statuses</h3>
+                            <div style="height: 250px; width: 100%; position: relative;">
+                                <canvas id="osm-chart-status"></canvas>
+                            </div>
+                        </div>
+                        <div style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; flex: 1; border-radius: 4px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+                            <h3 style="margin-top: 0;">Data Sources</h3>
+                            <div style="height: 250px; width: 100%; position: relative;">
+                                <canvas id="osm-chart-sources"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3 class="title">Recent Searches</h3>
+                    <table class="wp-list-table widefat fixed striped" style="margin-bottom: 40px;">
+                        <thead>
+                            <tr>
+                                <th>Query</th>
+                                <th>Count</th>
+                                <th>Last Searched</th>
+                                <th>Status</th>
+                                <th>Source</th>
+                            </tr>
+                        </thead>
+                        <tbody id="osm-recent-searches">
+                            <tr><td colspan="5">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="settings" class="osm-admin-tab-pane">
                     <h2 class="osm-tab-title">General Settings</h2>
                     <form id="osm-settings-form">
                         <input type="hidden" name="osm_settings_group" value="general">

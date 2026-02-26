@@ -654,3 +654,104 @@ function osm_ajax_bubble_sync() {
     wp_send_json_success(['message' => "Successfully synced bubble counts for {$updated_count} cities."]);
 }
 add_action('wp_ajax_osm_bubble_sync', 'osm_ajax_bubble_sync');
+
+
+function osm_ajax_get_dashboard_stats() {
+    check_ajax_referer('osm_ajax_nonce', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Insufficient permissions.');
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'osm_searches';
+
+    // Check if table exists
+    if($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        wp_send_json_error('Search logs table missing.');
+    }
+
+    $date_filter = isset($_POST['date_filter']) ? sanitize_text_field($_POST['date_filter']) : 'all_time';
+
+    $where_clause = "WHERE 1=1";
+    switch ($date_filter) {
+        case 'today':
+            $where_clause .= " AND DATE(time) = CURDATE()";
+            break;
+        case 'yesterday':
+            $where_clause .= " AND DATE(time) = CURDATE() - INTERVAL 1 DAY";
+            break;
+        case 'this_week':
+            $where_clause .= " AND YEARWEEK(time, 1) = YEARWEEK(CURDATE(), 1)";
+            break;
+        case 'last_week':
+            $where_clause .= " AND YEARWEEK(time, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)";
+            break;
+        case 'this_month':
+            $where_clause .= " AND YEAR(time) = YEAR(CURDATE()) AND MONTH(time) = MONTH(CURDATE())";
+            break;
+        case 'last_month':
+            $where_clause .= " AND YEAR(time) = YEAR(CURDATE() - INTERVAL 1 MONTH) AND MONTH(time) = MONTH(CURDATE() - INTERVAL 1 MONTH)";
+            break;
+        case 'last_30_days':
+            $where_clause .= " AND DATE(time) >= CURDATE() - INTERVAL 30 DAY";
+            break;
+        case 'this_year':
+            $where_clause .= " AND YEAR(time) = YEAR(CURDATE())";
+            break;
+        case 'last_year':
+            $where_clause .= " AND YEAR(time) = YEAR(CURDATE()) - 1";
+            break;
+    }
+
+    $total = $wpdb->get_var("SELECT COUNT(*) FROM $table_name $where_clause");
+    $found = $wpdb->get_var("SELECT COUNT(*) FROM $table_name $where_clause AND found_status = 'found'");
+    
+    $recent = $wpdb->get_results("
+        SELECT 
+            LOWER(search_query) as search_query, 
+            MAX(time) as latest_time, 
+            COUNT(*) as search_count, 
+            found_status, 
+            source 
+        FROM $table_name 
+        $where_clause
+        GROUP BY LOWER(search_query), found_status, source 
+        ORDER BY latest_time DESC 
+        LIMIT 50
+    ");
+
+    $timeline = $wpdb->get_results("
+        SELECT DATE(time) as date, COUNT(*) as count 
+        FROM $table_name 
+        $where_clause 
+        GROUP BY DATE(time) 
+        ORDER BY date ASC
+    ");
+
+    $status_chart = $wpdb->get_results("
+        SELECT found_status, COUNT(*) as count 
+        FROM $table_name 
+        $where_clause 
+        GROUP BY found_status
+    ");
+
+    $sources_chart = $wpdb->get_results("
+        SELECT source, COUNT(*) as count 
+        FROM $table_name 
+        $where_clause 
+        GROUP BY source
+    ");
+
+    wp_send_json_success([
+        'total' => $total,
+        'found' => $found,
+        'recent' => $recent,
+        'charts' => [
+            'timeline' => $timeline,
+            'status' => $status_chart,
+            'sources' => $sources_chart
+        ]
+    ]);
+}
+add_action('wp_ajax_osm_get_dashboard_stats', 'osm_ajax_get_dashboard_stats');
