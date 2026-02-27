@@ -191,6 +191,12 @@ function osm_settings_page_html() {
                         </a>
                     </li>
                     <li>
+                        <a href="#search" class="nav-tab">
+                            <span class="dashicons dashicons-search"></span>
+                            <span>Search</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="#pins" class="nav-tab">
                             <span class="dashicons dashicons-location"></span>
                             <span>Pins</span>
@@ -406,6 +412,112 @@ function osm_settings_page_html() {
                         </tr>
                     </table>
                 </div>
+
+                <div id="search" class="osm-admin-tab-pane">
+                    <h2 class="osm-tab-title">Search Settings</h2>
+                    <form id="osm-settings-form-search">
+                        <input type="hidden" name="osm_settings_group" value="search">
+                        
+                        <!-- Popular Search Settings -->
+                        <h3>Popular Searches Widget</h3>
+                        <p class="description" style="margin-bottom: 20px; font-size: 14px;">Configure the popular searches list to be shown as soon as users start typing in the map autocomplete.</p>
+                        
+                        <table class="form-table">
+                            <tr valign="top">
+                                <th scope="row">Enable Popular Searches</th>
+                                <td>
+                                    <div class="switchery-wraper">
+                                        <span>No</span>
+                                        <label class="switchery">
+                                            <input type="checkbox" id="osm_enable_popular_search" name="osm_enable_popular_search" value="yes" <?php checked( get_option('osm_enable_popular_search', 'yes'), 'yes' ); ?>>
+                                            <span class="switchery-slider round"></span>
+                                        </label>
+                                        <span>Yes</span>
+                                    </div>
+                                    <p class="description">If enabled, the top popular searches will be shown automatically during typing.</p>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row">Number of Popular Searches</th>
+                                <td>
+                                    <input type="number" name="osm_popular_searches_count" class="regular-text" style="max-width: 100px; text-align: center; border-radius: 4px;" value="<?php echo esc_attr( get_option('osm_popular_searches_count', 3) ); ?>" min="1" max="20" />
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row">Based On Timeframe</th>
+                                <td>
+                                    <select name="osm_popular_search_timeframe" style="padding: 4px 8px; border-radius: 4px;">
+                                        <?php 
+                                        $tf = get_option('osm_popular_search_timeframe', 'this_month'); 
+                                        $options = array(
+                                            'this_week' => 'This Week',
+                                            'last_week' => 'Last Week',
+                                            'this_month' => 'This Month',
+                                            'last_month' => 'Last Month',
+                                            'this_year' => 'This Year',
+                                            'last_year' => 'Last Year',
+                                        );
+                                        foreach ($options as $val => $label) {
+                                            $selected = ($tf === $val) ? 'selected' : '';
+                                            echo "<option value='{$val}' {$selected}>{$label}</option>";
+                                        }
+                                        ?>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row">Criteria Section</th>
+                                <td>
+                                    <?php
+                                    global $wpdb;
+                                    $table_name = $wpdb->prefix . 'osm_searches';
+                                    
+                                    // Make sure table exists
+                                    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
+                                        $statuses = $wpdb->get_col("SELECT DISTINCT found_status FROM $table_name WHERE found_status != ''");
+                                        $sources  = $wpdb->get_col("SELECT DISTINCT source FROM $table_name WHERE source != ''");
+                                    } else {
+                                        $statuses = array('found', 'not_found');
+                                        $sources  = array('form', 'map_search');
+                                    }
+                                    if (empty($statuses)) $statuses = array('found', 'not_found'); // defaults
+                                    if (empty($sources)) $sources = array('form', 'map_search');
+                                    
+                                    $saved_statuses = get_option('osm_popular_search_statuses', array('found'));
+                                    $saved_sources  = get_option('osm_popular_search_sources', array());
+                                    ?>
+                                    <div style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px;">
+                                        <p style="font-weight:600; margin-top: 0; margin-bottom:10px;">Qualifying Statuses:</p>
+                                        <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom:20px;">
+                                            <?php foreach ($statuses as $st): ?>
+                                                <label style="display:inline-flex; align-items:center; gap:8px; cursor: pointer;">
+                                                    <input type="checkbox" name="osm_popular_search_statuses[]" value="<?php echo esc_attr($st); ?>" <?php echo in_array($st, $saved_statuses) ? 'checked' : ''; ?>>
+                                                    <?php echo esc_html(ucfirst(str_replace('_', ' ', $st))); ?>
+                                                </label>
+                                            <?php endforeach; ?>
+                                        </div>
+
+                                        <p style="font-weight:600; margin-bottom:10px; padding-top: 15px; border-top: 1px solid #eee;">Qualifying Sources:</p>
+                                        <div style="display:flex; gap:15px; flex-wrap:wrap;">
+                                            <?php foreach ($sources as $sr): ?>
+                                                <label style="display:inline-flex; align-items:center; gap:8px; cursor: pointer;">
+                                                    <input type="checkbox" name="osm_popular_search_sources[]" value="<?php echo esc_attr($sr); ?>" <?php echo in_array($sr, $saved_sources) ? 'checked' : ''; ?>>
+                                                    <?php echo esc_html(ucfirst(str_replace('_', ' ', $sr))); ?>
+                                                </label>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                    <p class="description" style="margin-top: 10px;">If no source is selected, searches from all sources will be considered. Only selected statuses will be included.</p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <p class="submit">
+                            <button type="submit" class="button-primary">Save Search Settings</button>
+                        </p>
+                    </form>
+                </div>
+
 
                 <div id="colors" class="osm-admin-tab-pane">
                     <h2 class="osm-tab-title">Color Settings</h2>

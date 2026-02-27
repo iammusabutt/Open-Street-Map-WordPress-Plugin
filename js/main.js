@@ -177,6 +177,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ===== DYNAMIC DATA FETCHING =====
   let CLUSTER_CITIES = [];
   let SIGN_DATA = [];
+  let POPULAR_SEARCHES = [];
+
+  // Fetch popular searches in parallel but don't block
+  if (plugin_vars.popular_searches_url) {
+    fetch(plugin_vars.popular_searches_url)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) POPULAR_SEARCHES = data;
+      })
+      .catch(e => console.error("Error fetching popular searches:", e));
+  }
 
   try {
     const [citiesRes, signsRes] = await Promise.all([
@@ -715,30 +726,73 @@ ${expandIconHtml}
   // Pull city names from your cluster data
   const cityNames = CLUSTER_CITIES.map((c) => c.name);
 
+  function renderSuggestions(matches, type = 'cities', query = '') {
+    suggestionsList.innerHTML = "";
+    if (matches.length === 0) return;
+
+    if (type === 'popular') {
+      const header = document.createElement("li");
+      header.innerHTML = `<span style="font-size: 11px; text-transform: uppercase; color: #888; font-weight: bold; padding: 4px 0; display: block;">🔥 Popular Searches</span>`;
+      header.style.pointerEvents = 'none';
+      suggestionsList.appendChild(header);
+
+      matches.forEach(term => {
+        const li = document.createElement("li");
+        li.innerHTML = `<span style="display:flex; align-items:center; gap:8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> <span style="text-transform: capitalize;">${term}</span></span>`;
+        li.addEventListener("click", () => {
+          searchInput.value = term;
+          suggestionsList.innerHTML = "";
+          searchCity(term);
+        });
+        suggestionsList.appendChild(li);
+      });
+    } else {
+      matches.slice(0, 5).forEach((city) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<strong>${city.substr(0, query.length)}</strong>${city.substr(query.length)}`;
+        li.addEventListener("click", () => {
+          searchInput.value = city;
+          suggestionsList.innerHTML = "";
+          searchCity(city.toLowerCase()); // ✅ triggers your existing zoom function
+        });
+        suggestionsList.appendChild(li);
+      });
+    }
+  }
+
+  // Handle Focus
+  searchInput.addEventListener("focus", () => {
+    const query = searchInput.value.trim().toLowerCase();
+    if (!query && POPULAR_SEARCHES.length > 0) {
+      renderSuggestions(POPULAR_SEARCHES, 'popular');
+    } else if (query) {
+      const matches = cityNames.filter((city) => city.toLowerCase().startsWith(query));
+      if (matches.length > 0) renderSuggestions(matches, 'cities', query);
+    }
+  });
+
   // Typing handler
   searchInput.addEventListener("input", () => {
     const query = searchInput.value.trim().toLowerCase();
-    suggestionsList.innerHTML = "";
 
-    if (!query) return;
+    if (!query) {
+      if (POPULAR_SEARCHES.length > 0) {
+        renderSuggestions(POPULAR_SEARCHES, 'popular');
+      } else {
+        suggestionsList.innerHTML = "";
+      }
+      return;
+    }
 
     const matches = cityNames.filter((city) =>
       city.toLowerCase().startsWith(query)
     );
 
-    matches.slice(0, 5).forEach((city) => {
-      const li = document.createElement("li");
-      li.innerHTML = `<strong>${city.substr(
-        0,
-        query.length
-      )}</strong>${city.substr(query.length)}`;
-      li.addEventListener("click", () => {
-        searchInput.value = city;
-        suggestionsList.innerHTML = "";
-        searchCity(city.toLowerCase()); // ✅ triggers your existing zoom function
-      });
-      suggestionsList.appendChild(li);
-    });
+    if (matches.length > 0) {
+      renderSuggestions(matches, 'cities', query);
+    } else {
+      suggestionsList.innerHTML = "";
+    }
   });
 
   // Hide suggestions when clicking outside

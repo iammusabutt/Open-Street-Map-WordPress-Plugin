@@ -221,3 +221,95 @@ function osm_log_search_callback( $request ) {
     return new WP_REST_Response( array('success' => true), 200 );
 }
 
+// REST API endpoint for popular searches
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'osm/v1', '/popular-searches', array(
+        'methods' => 'GET',
+        'callback' => 'osm_get_popular_searches_callback',
+        'permission_callback' => '__return_true'
+    ) );
+} );
+
+function osm_get_popular_searches_callback( $request ) {
+    global $wpdb;
+
+    $enable_popular_search = get_option('osm_enable_popular_search', 'yes');
+    if ($enable_popular_search !== 'yes') {
+        return new WP_REST_Response( array(), 200 );
+    }
+
+    $limit = (int) get_option('osm_popular_searches_count', 3);
+    $timeframe = get_option('osm_popular_search_timeframe', 'this_month');
+    $statuses = get_option('osm_popular_search_statuses', array('found'));
+    $sources = get_option('osm_popular_search_sources', array()); // empty means all
+
+    $table_name = $wpdb->prefix . 'osm_searches';
+    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        return new WP_REST_Response( array(), 200 );
+    }
+
+    $where_clause = "WHERE 1=1";
+
+    // Timeframe filter
+    switch ($timeframe) {
+        case 'this_week':
+            $where_clause .= " AND YEARWEEK(time, 1) = YEARWEEK(CURDATE(), 1)";
+            break;
+        case 'last_week':
+            $where_clause .= " AND YEARWEEK(time, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1)";
+            break;
+        case 'this_month':
+            $where_clause .= " AND YEAR(time) = YEAR(CURDATE()) AND MONTH(time) = MONTH(CURDATE())";
+            break;
+        case 'last_month':
+            $where_clause .= " AND YEAR(time) = YEAR(CURDATE() - INTERVAL 1 MONTH) AND MONTH(time) = MONTH(CURDATE() - INTERVAL 1 MONTH)";
+            break;
+        case 'this_year':
+            $where_clause .= " AND YEAR(time) = YEAR(CURDATE())";
+            break;
+        case 'last_year':
+            $where_clause .= " AND YEAR(time) = YEAR(CURDATE()) - 1";
+            break;
+        default:
+            $where_clause .= " AND YEAR(time) = YEAR(CURDATE()) AND MONTH(time) = MONTH(CURDATE())"; // default this_month
+            break;
+    }
+
+    // Status filter
+    if (!empty($statuses) && is_array($statuses)) {
+        $escaped_statuses = array_map('esc_sql', $statuses);
+        $status_list = "'" . implode("','", $escaped_statuses) . "'";
+        $where_clause .= " AND found_status IN ($status_list)";
+    }
+
+    // Source filter
+    if (!empty($sources) && is_array($sources)) {
+        $escaped_sources = array_map('esc_sql', $sources);
+        $source_list = "'" . implode("','", $escaped_sources) . "'";
+        $where_clause .= " AND source IN ($source_list)";
+    }
+
+    $sql = $wpdb->prepare("
+        SELECT LOWER(search_query) as query, COUNT(*) as count 
+        FROM $table_name 
+        $where_clause 
+        GROUP BY LOWER(search_query) 
+        ORDER BY count DESC 
+        LIMIT %d
+    ", $limit);
+
+    // Error log for debugging
+    // error_log('OSM Popular Searches SQL: ' . $sql);
+
+    $results = $wpdb->get_results($sql);
+
+    $popular_searches = array();
+    foreach ($results as $row) {
+        if (!empty($row->query)) {
+            $popular_searches[] = $row->query;
+        }
+    }
+
+    return new WP_REST_Response( $popular_searches, 200 );
+}
+

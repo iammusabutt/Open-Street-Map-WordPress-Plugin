@@ -380,6 +380,34 @@ function osm_ajax_save_settings() {
         }
     }
 
+    // Save Search Settings
+    if ($settings_group === 'search' || $settings_group === 'all') {
+        if (isset($_POST['osm_enable_popular_search'])) {
+            update_option('osm_enable_popular_search', 'yes');
+        } else {
+            update_option('osm_enable_popular_search', 'no');
+        }
+        
+        if (isset($_POST['osm_popular_searches_count'])) {
+            update_option('osm_popular_searches_count', intval($_POST['osm_popular_searches_count']));
+        }
+        if (isset($_POST['osm_popular_search_timeframe'])) {
+            update_option('osm_popular_search_timeframe', sanitize_text_field($_POST['osm_popular_search_timeframe']));
+        }
+        if (isset($_POST['osm_popular_search_statuses'])) {
+            $statuses = array_map('sanitize_text_field', (array) $_POST['osm_popular_search_statuses']);
+            update_option('osm_popular_search_statuses', $statuses);
+        } else {
+            update_option('osm_popular_search_statuses', array());
+        }
+        if (isset($_POST['osm_popular_search_sources'])) {
+            $sources = array_map('sanitize_text_field', (array) $_POST['osm_popular_search_sources']);
+            update_option('osm_popular_search_sources', $sources);
+        } else {
+            update_option('osm_popular_search_sources', array());
+        }
+    }
+
     wp_send_json_success();
 }
 add_action('wp_ajax_osm_save_settings', 'osm_ajax_save_settings');

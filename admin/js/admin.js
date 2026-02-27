@@ -639,6 +639,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Save settings (Search)
+    const searchForm = document.getElementById('osm-settings-form-search');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            saveSettings(this);
+        });
+    }
+
     // Save settings (Map Box)
     const mapboxForm = document.getElementById('osm-settings-form-mapbox');
     if (mapboxForm) {

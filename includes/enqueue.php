@@ -28,6 +28,7 @@ function open_street_map_enqueue_scripts() {
         'signs_url' => get_rest_url( null, 'osm/v1/signs' ),
         'proxy_url' => get_rest_url( null, 'osm/v1/proxy-search' ),
         'log_search_url' => get_rest_url( null, 'osm/v1/log-search' ),
+        'popular_searches_url' => get_rest_url( null, 'osm/v1/popular-searches' ),
         'colors' => array(
             'popup_bg' => get_option('osm_popup_bg_color', '#ffffff'),
             'popup_btn_bg' => get_option('osm_popup_btn_bg_color', '#007bff'),
