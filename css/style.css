@@ -11,7 +11,7 @@
 .map-container {
     position: relative;
     height: 560px;
-    max-width: 1040px;
+    max-width: 100%;
     border-radius: 16px;
     overflow: hidden;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -233,7 +233,7 @@
     max-width: 90%;
     max-height: 90vh;
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     transform: scale(0.9);
     transition: transform 0.3s ease;
 }
@@ -259,7 +259,8 @@
 .osm-popup-image-wrapper {
     position: relative;
     width: 100%;
-    height: 120px; /* Match existing img height */
+    height: 120px;
+    /* Match existing img height */
 }
 
 .osm-popup-image-wrapper img {
@@ -268,7 +269,8 @@
     object-fit: cover;
     border-top-left-radius: 12px;
     border-top-right-radius: 12px;
-    margin-bottom: 0; /* Override existing margin */
+    margin-bottom: 0;
+    /* Override existing margin */
     display: block;
     cursor: pointer;
 }
@@ -286,7 +288,8 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    pointer-events: none; /* Let clicks pass through to wrapper/img if needed, or handle on wrapper */
+    pointer-events: none;
+    /* Let clicks pass through to wrapper/img if needed, or handle on wrapper */
     transition: background 0.2s;
 }
 

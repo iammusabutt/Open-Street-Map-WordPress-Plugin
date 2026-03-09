@@ -490,6 +490,7 @@ function osm_settings_page_html() {
                                         <p style="font-weight:600; margin-top: 0; margin-bottom:10px;">Qualifying Statuses:</p>
                                         <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom:20px;">
                                             <?php foreach ($statuses as $st): ?>
+                                                <?php if (strtolower($st) === 'none') continue; ?>
                                                 <label style="display:inline-flex; align-items:center; gap:8px; cursor: pointer;">
                                                     <input type="checkbox" name="osm_popular_search_statuses[]" value="<?php echo esc_attr($st); ?>" <?php echo in_array($st, $saved_statuses) ? 'checked' : ''; ?>>
                                                     <?php echo esc_html(ucfirst(str_replace('_', ' ', $st))); ?>
@@ -500,6 +501,7 @@ function osm_settings_page_html() {
                                         <p style="font-weight:600; margin-bottom:10px; padding-top: 15px; border-top: 1px solid #eee;">Qualifying Sources:</p>
                                         <div style="display:flex; gap:15px; flex-wrap:wrap;">
                                             <?php foreach ($sources as $sr): ?>
+                                                <?php if (strtolower($sr) === 'none') continue; ?>
                                                 <label style="display:inline-flex; align-items:center; gap:8px; cursor: pointer;">
                                                     <input type="checkbox" name="osm_popular_search_sources[]" value="<?php echo esc_attr($sr); ?>" <?php echo in_array($sr, $saved_sources) ? 'checked' : ''; ?>>
                                                     <?php echo esc_html(ucfirst(str_replace('_', ' ', $sr))); ?>
@@ -763,56 +765,109 @@ function osm_settings_page_html() {
                 <?php if (get_option('osm_developer_mode') === 'yes') : ?>
                 <div id="developer" class="osm-admin-tab-pane">
                     <h2 class="osm-tab-title">Developer Tools</h2>
-                    <p>Advanced tools for developers.</p>
+                    <p class="description">Advanced maintenance and bulk operations. <strong style="color: #b32d2e;">Use with caution as these actions modify the database directly.</strong></p>
                     
-                    <div class="import-section">
-                        <h3>Bulk Actions</h3>
-                        <p>Perform bulk operations on your data.</p>
-                        <div style="margin-bottom: 10px;">
-                            <button type="button" id="osm-delete-all-signs-btn" class="button button-secondary" style="color: #b32d2e; border-color: #b32d2e;">Delete All Signs</button>
-                            <span class="spinner" id="osm-delete-all-signs-spinner"></span>
-                            <p class="description">Permanently delete ALL Sign posts. This cannot be undone.</p>
-                        </div>
-                        <div>
-                            <button type="button" id="osm-delete-orphaned-cities-btn" class="button button-secondary" style="color: #b32d2e; border-color: #b32d2e;">Delete Orphaned Cities</button>
-                            <span class="spinner" id="osm-delete-orphaned-cities-spinner"></span>
-                            <p class="description">Delete City posts that have NO Signs assigned to them.</p>
-                        </div>
-                        <div id="osm-bulk-action-log" style="margin-top: 10px; max-height: 200px; overflow-y: auto; background: #fff; border: 1px solid #ccd0d4; padding: 10px; display: none;"></div>
-                    </div>
+                    <!-- TABLE 1: DELETE ALL -->
+                    <h3 style="margin-top: 30px;">Bulk Delete</h3>
+                    <table class="wp-list-table widefat fixed striped" style="margin-top: 10px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Tool</th>
+                                <th>Description</th>
+                                <th style="width: 25%;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Delete All Signs</strong></td>
+                                <td>Permanently delete ALL Sign posts from the database. This cannot be undone.</td>
+                                <td>
+                                    <button type="button" id="osm-delete-all-signs-btn" class="button button-action" style="color: #b32d2e; border-color: #b32d2e;">Execute</button>
+                                    <span class="spinner" id="osm-delete-all-signs-spinner" style="float: none; margin: 4px 10px 0;"></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Delete All Cities</strong></td>
+                                <td>Permanently delete ALL City posts from the database. This cannot be undone.</td>
+                                <td>
+                                    <button type="button" id="osm-delete-all-cities-btn" class="button button-action" style="color: #b32d2e; border-color: #b32d2e;">Execute</button>
+                                    <span class="spinner" id="osm-delete-all-cities-spinner" style="float: none; margin: 4px 10px 0;"></span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div id="osm-bulk-action-log" style="margin-top: 10px; max-width: 1000px; max-height: 200px; overflow-y: auto; background: #fff; border: 1px solid #ccd0d4; padding: 10px; display: none; font-family: monospace; white-space: pre-wrap;"></div>
 
-                    <div class="import-section">
-                        <h3>Maintenance</h3>
-                        <p>Remove duplicate cities and signs. This will keep the oldest record and delete newer duplicates based on the title.</p>
-                        <p style="color: red; font-weight: bold;">WARNING: Use this tool only if you know what you are doing! This action is irreversible.</p>
-                        <p>
-                            <label>
-                                <input type="checkbox" id="osm-dry-run"> Dry Run (Simulate removal without deleting)
-                            </label>
-                        </p>
-                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                                <button type="button" id="osm-remove-cities-btn" class="button-secondary">Remove Duplicate Cities</button>
-                                <button type="button" id="osm-remove-signs-btn" class="button-secondary">Remove Duplicate Signs</button>
-                            </div>
-                            <div id="osm-log-container" style="background: #f0f0f1; border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; display: none;"></div>
-                            <button type="button" id="osm-clear-log-btn" class="button-link" style="margin-top: 5px; display: none;">Clear Log</button>
-                            <span class="spinner" id="osm-duplicates-spinner"></span>
+                    <!-- TABLE 2: REMOVE DUPLICATES -->
+                    <h3 style="margin-top: 30px;">Remove Duplicates</h3>
+                    <table class="wp-list-table widefat fixed striped" style="margin-top: 10px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Tool</th>
+                                <th>Description</th>
+                                <th style="width: 25%;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Remove Duplicate Cities</strong></td>
+                                <td>Remove duplicate cities with the same name. Keeps the oldest post and reassigns signs to the preserved city.</td>
+                                <td>
+                                    <button type="button" id="osm-remove-cities-btn" class="button button-secondary">Execute</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Remove Duplicate Signs</strong></td>
+                                <td>Remove duplicate signs with the same title. Keeps the oldest record and deletes the newer ones.</td>
+                                <td>
+                                    <button type="button" id="osm-remove-signs-btn" class="button button-secondary">Execute</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Simulate Duplicates Removal</strong></td>
+                                <td>Check this box to do a "Dry Run" of the duplicate removal tools above. It simulates the database queries without actually deleting the records.</td>
+                                <td>
+                                    <label style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="checkbox" id="osm-dry-run">
+                                        <span>Enable Dry Run</span>
+                                    </label>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div style="margin-top: 10px; max-width: 1000px; display: flex; align-items: center; justify-content: space-between;">
+                         <span class="spinner" id="osm-duplicates-spinner" style="float: none; display: none;"></span>
+                         <button type="button" id="osm-clear-log-btn" class="button-link" style="display: none;">Clear Logs</button>
                     </div>
+                    <div id="osm-log-container" style="background: #f0f0f1; border: 1px solid #ccc; max-width: 1000px; padding: 10px; height: 300px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; display: none;"></div>
 
-                    <div class="import-section">
-                        <h3>Bubble Sync</h3>
-                        <p>Calculate the number of signs assigned to each city and update its Display Count field.</p>
-                        <div style="margin-bottom: 10px;">
-                            <button type="button" id="osm-bubble-sync-btn" class="button button-secondary" style="color: #2271b1; border-color: #2271b1;">Sync Bubble Counts</button>
-                            <span class="spinner" id="osm-bubble-sync-spinner"></span>
-                        </div>
-                        <div id="osm-bubble-sync-log" style="margin-top: 10px; max-height: 200px; overflow-y: auto; background: #fff; border: 1px solid #ccd0d4; padding: 10px; display: none;"></div>
-                    </div>
+                    <!-- TABLE 3: BUBBLE SYNC -->
+                    <h3 style="margin-top: 30px;">Bubble Sync</h3>
+                    <table class="wp-list-table widefat fixed striped" style="margin-top: 10px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Tool</th>
+                                <th>Description</th>
+                                <th style="width: 25%;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Bubble Sync</strong></td>
+                                <td>Calculate the number of signs assigned to each city and update its Display Count field.</td>
+                                <td>
+                                    <button type="button" id="osm-bubble-sync-btn" class="button button-action" style="color: #2271b1; border-color: #2271b1;">Execute</button>
+                                    <span class="spinner" id="osm-bubble-sync-spinner" style="float: none; margin: 4px 10px 0;"></span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div id="osm-bubble-sync-log" style="margin-top: 10px; max-width: 1000px; max-height: 200px; overflow-y: auto; background: #fff; border: 1px solid #ccd0d4; padding: 10px; display: none; font-family: monospace; white-space: pre-wrap;"></div>
 
-                    <div class="import-section">
-                        <h3>Debug Info</h3>
-                        <p>Plugin Version: 1.0.7</p>
-                        <p>WordPress Version: <?php echo get_bloginfo('version'); ?></p>
+                    <div class="import-section" style="margin: 30px 0; padding: 15px; background: #fff; border: 1px solid #ccd0d4;">
+                        <h3 style="margin-top: 0;">Debug Info</h3>
+                        <p style="margin-bottom: 5px;"><strong>Plugin Version:</strong> 1.0.7</p>
+                        <p style="margin-bottom: 0;"><strong>WordPress Version:</strong> <?php echo get_bloginfo('version'); ?></p>
                     </div>
                 </div>
                 <?php endif; ?>
